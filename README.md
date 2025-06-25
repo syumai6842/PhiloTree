@@ -1,50 +1,105 @@
-# Welcome to your Expo app 👋
+# 📘 思想ツリー対話アプリ 要件定義書
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## 🧭 概要
 
-## Get started
+本システムは、ユーザーの思索のプロセスを可視化・構造化し、AIとの対話によって思想を深め、体系的に発展させていくことを目的とする。
 
-1. Install dependencies
+### 🔄 思考フロー
 
-   ```bash
-   npm install
-   ```
+1. ユーザーが「考えたいこと」「気になっていること」をノードとして登録（体系に接続されたもの／されていないもの両方）
+2. 日常的にツリー上に思索の種を蓄積
+3. ユーザーがGPTsと通話（暇な時など）
+4. GPTsが思想体系全体を読み込み、様々な学問領域（哲学・心理・社会など）から学者的視座で応答（批判・共鳴・接続）
+5. 対話の中で思想がアウフヘーベン（統合・昇華）され、新たなノードとしてマップに組み込まれる
+6. 統合されたノードには、どの学者のどの視座と統合されたかが明記され、思想履歴としてGitHubのように可視化される
 
-2. Start the app
+## 🎨 UI要件
 
-   ```bash
-   npx expo start
-   ```
+### 🎯 テーマとコンセプト
 
-In the output, you'll find options to open the app in a
+* 本アプリは赤×黒ベースの**専用ダークモードUI**で統一される。
+* ユーザーの思想体系を**視覚的マップとして操作・構築できる体験**を重視し、タッチ・ドラッグによる直感的な操作性を追求する。
+* 批評・統合・棄却といった思想の動的変化を、ノードと並列な視座ブランチで表現する。
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### 📱 Expoアプリの主要画面とインタフェース構成（改訂）
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+| 画面          | 要素                | UI仕様                                                                                                                   |                                                                                |
+| ----------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 思想マップ画面     | ノードの視覚的配置・接続      | ノードはキャンバス上の自由配置式。長押しでノード追加。既存ノードへの接続は視覚的インジケータ（矢印候補）から選択する方式で簡易化。関係線は枝分かれ・重なりにも対応し、ジャンル・重要度で色分け。                       |                                                                                |
+| ノード作成ポップアップ | タイトル、本文、接続先ノードの選択 | マインドマップ形式を踏襲し、既存ノードをタップ後「＋」ボタンで即座に子ノード作成が可能。さらに、関係線（ブランチ）をタップし「＋」ボタンを押すことで、ノードとノードの間にも中間ノードを挿入できる。親・子の接続関係は自動的に再構成される。 | マインドマップ形式を踏襲し、既存ノードをタップ後「＋」ボタンで即座に子ノード作成が可能。親子関係はワンタップで自動設定され、テキスト入力後すぐに追加される。 |
+| ノード詳細表示     | タイトル、要約、批評、統合履歴   | 画面内にポップアップではなく**埋め込み小ウィンドウ**として開く。マップ上に重ならずに閲覧・編集可能。関連批評も統合元／棄却元と視覚リンク。                                                |                                                                                |
+| 哲学視座ブランチ表示  | GPTからの批評、共鳴、統合・棄却 | ノードと**並列構造**で思想批評がブランチとして表示される。統合ノードは枝分かれの先に生成され、元ノードとの関係が明確に可視化される。批評・反論・統合のフローが一目で分かるように、色分けされた流れを持つ矢印で接続される。        |                                                                                |
+| 通話準備画面      | 通話対象ノード選択／GPT接続状態 | 通話候補ノード一覧。チェックボックス付きリストで選択し、GPTとのVoice接続ステータスも同時に表示。                                                                   |                                                                                |
 
-## Get a fresh project
+### その他UI仕様
 
-When you're ready, run:
+* 赤×黒の**専用ダークテーマ（常時適用）**：
 
-```bash
-npm run reset-project
+  * 背景：#0A0A0A
+  * ノード通常色：#AA0000、選択時：#FF3333、批評：#660000
+  * 文字色：#EEEEEE、関係線：赤系グラデーション
+
+* 思想マップ画面はCanvasベース＋GPU描画最適化
+
+* ノード操作はすべてドラッグ・長押し・ピンチズーム対応
+
+* 小画面ノード詳細ビューはアニメーション付きスライドイン／アウト
+
+* ダークモード対応
+
+* 思索に集中しやすいミニマルUI（余白と階層的視認性重視）
+
+* モバイル端末の片手操作を想定したFAB配置とレスポンシブ設計
+
+* 思想ツリー画面はCanvasベースでパフォーマンス最適化
+
+---
+
+## 🔁 システム構成
+
+```
+[ユーザー発話] ⇄ [MyGPTs (PhiloTree)] ⇄ [アプリAPIエンドポイント] ⇄ [Expoアプリで可視化]
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
+## 🛠️ 機能要件
 
-To learn more about developing your project with Expo, look at the following resources:
+### 📱 Expoアプリ側（思想ツリー可視化＆入力）
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+#### 機能一覧（詳細）
 
-## Join the community
+| 機能              | 詳細内容                                                                                   |
+| --------------- | -------------------------------------------------------------------------------------- |
+| ノード追加           | ユーザーが自由入力した問い・命題・経験・概念を1つのノードとして追加。プレースホルダに「最近気になることを自由に書いてください」。保存時にIDとタイムスタンプが付与される。 |
+| ノードの親子構造化       | 新規ノードを独立した概念として保存するか、既存ノードの子として接続できる。選択された親ノードと階層的に接続され、ツリー上に関係性が反映される。                |
+| ノードメタデータ付与      | 各ノードには、カテゴリ（倫理・存在・認識など）、参考文献、出典、重要度（1〜5）などの属性を設定できる。                                   |
+| 通話タグ付け（メンション対象） | 「通話で扱いたい」とユーザーが指定したノードは `isMentionTarget = true` としてフラグされ、GPTが通話時に取得する対象となる。           |
+| ノード可視化          | 思想体系を有向グラフ（DAG）構造で描画。ノードの色・形・太さで重要度やジャンルを区別。SVGベースでズーム、ドラッグ、折りたたみ可能。                   |
+| ノード編集・削除        | 既存ノードのタイトル・内容・関係性・メタデータを編集。誤操作防止の確認つき削除機能あり。                                           |
+| リアルタイム更新        | GPTs通話中に生成された新規ノード・接続情報を即時でツリーに反映。WebSocket or Firebaseベースで常時監視。                       |
+| アウフヘーベン履歴表示     | GPTが生成した「統合ノード」には、元になった複数のノード・批評者（例：ハイデガー×サルトル）を明示。履歴はGitHubのコミットのように可視化される。           |
 
-Join our community of developers creating universal apps.
+---
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### 🧠 MyGPTs（PhiloTree）側（思想生成・批評・応答）
+
+#### 機能一覧（詳細）
+
+| 機能            | 詳細内容                                                                                      |
+| ------------- | ----------------------------------------------------------------------------------------- |
+| ユーザー発話からノード構成 | 会話中の自然発話から、意味単位（命題・疑問・定義）を抽出し、自動でノード化。必要に応じて親ノードとの関係性も付与し、APIで送信。                         |
+| 哲学的視座からの批評生成  | GPTはノードの意味解析結果から、関連する学者・理論・学問分野を選定し、該当視座からの批判・接続・補足・統合の応答を生成。複数視座の比較も可能。                  |
+| 通話メンション対応     | ユーザーが「〜について考えたい」と述べた際、ノードタイトルと照合し、事前に通話対象としてフラグされたノード（isMentionTarget）を対象に応答を生成。          |
+| 思想体系構造の全体参照   | GPTは対話前に思想ノード全体の構造を取得・保持し、ノード間の関係性・ギャップ・未接続領域を文脈的に判断する。                                   |
+| 統合ノードの生成と送信   | 複数の既存ノードと哲学的視座から導き出された共通思想を「統合ノード（アウフヘーベン）」として新規作成し、参照元と視座名を含めた状態でAPIに送信。                 |
+| エンドポイント呼び出し   | Expoアプリに対して `POST /receive-node` によるノード送信、`GET /nodes` による参照、`GET /nodes/:id` による個別取得を行う。 |
+
+## 🎙️ 通話体験イメージ
+
+* ユーザー「最近、“なぜ他者の期待に応えたくなるのか？”が気になってて…」
+* GPT（ノードリストからマッチ）→ 該当ノード取得 → 哲学者視座応答
+
+> GPT「それはフロイト的には超自我の内面化とも…レヴィナスなら“顔”の呼びかけですね」
+
+---

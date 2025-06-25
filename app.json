@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "my-expo-app",
-    "slug": "my-expo-app",
+    "name": "PhiloTree",
+    "slug": "PhiloTree",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myexpoapp",
+    "scheme": "philotree",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
