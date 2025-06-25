@@ -1,45 +1,44 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
-import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { PhiloTreeColors } from '../../constants/Colors';
+
+function TabBarIcon({ name, color }: { name: any; color: string }) {
+  return <IconSymbol name={name} size={28} color={color} />;
+}
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarBackground: TabBarBackground,
-        tabBarStyle: Platform.select({
-          ios: {
-            // Use a transparent background on iOS to show the blur effect
-            position: 'absolute',
+    <SafeAreaView style={{ flex: 1 }} edges={['bottom']}>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: PhiloTreeColors.nodeNormal,
+          tabBarInactiveTintColor: PhiloTreeColors.textMuted,
+          tabBarStyle: {
+            backgroundColor: PhiloTreeColors.backgroundSecondary,
+            borderTopColor: PhiloTreeColors.border,
           },
-          default: {},
-        }),
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-    </Tabs>
+          headerStyle: {
+            backgroundColor: PhiloTreeColors.backgroundSecondary,
+          },
+          headerTintColor: PhiloTreeColors.textPrimary,
+        }}>
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: '思想マップ',
+            tabBarIcon: ({ color }) => <TabBarIcon name="map" color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="explore"
+          options={{
+            title: '探索',
+            tabBarIcon: ({ color }) => <TabBarIcon name="magnifyingglass" color={color} />,
+          }}
+        />
+      </Tabs>
+    </SafeAreaView>
   );
 }

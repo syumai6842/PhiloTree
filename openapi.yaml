@@ -1,0 +1,432 @@
+openapi: 3.1.0
+info:
+  title: PhiloTree API
+  description: 思想ツリー対話アプリのAPI。ノードの作成、編集、削除、批評の追加、ノード一覧の取得を行います。
+  version: 1.0.0
+  contact:
+    name: PhiloTree Support
+    email: support@philotree.com
+
+servers:
+  - url: https://knjtgrcydclkwiomekcu.supabase.co/functions/v1
+    description: Supabase Edge Functions
+
+paths:
+  /receive-node:
+    post:
+      summary: ノード、批評を作成
+      description: MyGPTsから思想ツリーに新しいノード、批評を追加します
+      operationId: receiveNode
+      tags:
+        - Nodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiveNodeRequest'
+            examples:
+              create_node:
+                summary: ノード作成
+                value:
+                  type: "node"
+                  data:
+                    title: "なぜ他者の期待に応えたくなるのか？"
+                    content: "最近気になっていることについて"
+                    parent_ids: []
+                    source_gpt: "GPT-4"
+              create_criticism:
+                summary: 批評作成
+                value:
+                  type: "criticism"
+                  data:
+                    comment: "超自我の内面化という観点から見ると..."
+                    scholar_name: "フロイト"
+                    node_id: "target-node-id"
+                    field: "精神分析学"
+                    source_url: "https://example.com/reference"
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+              example:
+                success: true
+        '400':
+          description: リクエストエラー
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid type"
+              example:
+                error: "Invalid type"
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to create node"
+              example:
+                error: "Failed to create node"
+
+  /nodes:
+    get:
+      summary: ノード一覧を取得
+      description: 思想ツリーの全ノードと批評を取得します
+      operationId: getNodes
+      tags:
+        - Nodes
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      nodes:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Node'
+                      criticisms:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Criticism'
+              example:
+                success: true
+                data:
+                  nodes:
+                    - id: "123e4567-e89b-12d3-a456-426614174000"
+                      title: "なぜ他者の期待に応えたくなるのか？"
+                      content: "最近気になっていることについて"
+                      parent_ids: []
+                      created_at: "2025-06-25T02:00:00Z"
+                      updated_at: "2025-06-25T02:00:00Z"
+                      source_gpt: "GPT-4"
+                  criticisms:
+                    - id: "456e7890-e89b-12d3-a456-426614174001"
+                      node_id: "123e4567-e89b-12d3-a456-426614174000"
+                      scholar_name: "フロイト"
+                      field: "精神分析学"
+                      comment: "超自我の内面化という観点から見ると..."
+                      created_at: "2025-06-25T02:30:00Z"
+                      source_url: "https://example.com/reference"
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to fetch nodes"
+              example:
+                error: "Failed to fetch nodes"
+
+  /node/{id}:
+    patch:
+      summary: ノードを編集
+      description: 指定したIDのノードのタイトルや内容などを編集します
+      operationId: updateNode
+      tags:
+        - Nodes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 編集対象ノードのID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNodeRequest'
+            examples:
+              update_title:
+                summary: タイトル編集
+                value:
+                  title: "新しいタイトル"
+              update_content:
+                summary: 内容編集
+                value:
+                  content: "内容を編集しました"
+              update_parents:
+                summary: 親ノード変更
+                value:
+                  parent_ids: ["new-parent-id"]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+              example:
+                success: true
+        '404':
+          description: ノードが見つからない
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Node not found"
+              example:
+                error: "Node not found"
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to update node"
+              example:
+                error: "Failed to update node"
+
+    delete:
+      summary: ノードを削除
+      description: 指定したIDのノードを削除します
+      operationId: deleteNode
+      tags:
+        - Nodes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 削除対象ノードのID
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+              example:
+                success: true
+        '404':
+          description: ノードが見つからない
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Node not found"
+              example:
+                error: "Node not found"
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to delete node"
+              example:
+                error: "Failed to delete node"
+
+components:
+  schemas:
+    ReceiveNodeRequest:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: [node, criticism]
+          description: リクエストタイプ
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/NodeData'
+            - $ref: '#/components/schemas/CriticismData'
+
+    NodeData:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          description: ノードのタイトル
+          maxLength: 100
+        content:
+          type: string
+          description: ノードの内容
+          maxLength: 1000
+        parent_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: 親ノードのID配列
+          default: []
+        source_gpt:
+          type: string
+          description: 作成元のGPT名
+          example: "GPT-4"
+
+    CriticismData:
+      type: object
+      required:
+        - comment
+        - scholar_name
+      properties:
+        comment:
+          type: string
+          description: 批評内容
+          maxLength: 1000
+        scholar_name:
+          type: string
+          description: 学者名
+          maxLength: 50
+        node_id:
+          type: string
+          format: uuid
+          description: 批評対象のノードID
+        field:
+          type: string
+          description: 学問分野
+          maxLength: 100
+        source_url:
+          type: string
+          description: 参考文献URL
+          format: uri
+
+    Node:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ノードID
+        title:
+          type: string
+          description: ノードのタイトル
+        content:
+          type: string
+          description: ノードの内容
+        parent_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: 親ノードのID配列
+        created_at:
+          type: string
+          format: date-time
+          description: 作成日時
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新日時
+        source_gpt:
+          type: string
+          description: 作成元のGPT名
+
+    Criticism:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 批評ID
+        node_id:
+          type: string
+          format: uuid
+          description: 批評対象のノードID
+        scholar_name:
+          type: string
+          description: 学者名
+        field:
+          type: string
+          description: 学問分野
+        comment:
+          type: string
+          description: 批評内容
+        created_at:
+          type: string
+          format: date-time
+          description: 作成日時
+        source_url:
+          type: string
+          description: 参考文献URL
+
+    UpdateNodeRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: ノードのタイトル
+          maxLength: 100
+        content:
+          type: string
+          description: ノードの内容
+          maxLength: 1000
+        parent_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: 親ノードのID配列
+        source_gpt:
+          type: string
+          description: 作成元のGPT名
+          example: "GPT-4"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Nodes
+    description: ノード関連の操作 
