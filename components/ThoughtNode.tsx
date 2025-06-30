@@ -1,13 +1,12 @@
-import React from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
     Dimensions,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { PhiloTreeColors } from '../constants/Colors';
-import { Node } from '../types';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -17,10 +16,13 @@ interface NodePosition {
 }
 
 interface ThoughtNodeProps {
-  node: Node;
+  node: any; // NodeまたはCriticism
   position: NodePosition;
   isSelected?: boolean;
-  onPress?: () => void;
+  isCriticism?: boolean;
+  isOrphanCriticism?: boolean;
+  onPress?: () => void; // ダブルタップで内容表示
+  onSelect?: () => void; // シングルタップで選択
   onLongPress?: () => void;
   onAddChild?: () => void;
 }
@@ -29,23 +31,75 @@ export default function ThoughtNode({
   node,
   position,
   isSelected = false,
+  isCriticism = false,
+  isOrphanCriticism = false,
   onPress,
+  onSelect,
   onLongPress,
   onAddChild,
 }: ThoughtNodeProps) {
   const getNodeColor = () => {
-    if (isSelected) {
-      return PhiloTreeColors.nodeSelected;
-    }
+    if (isOrphanCriticism) return '#fff';
+    if (isCriticism) return PhiloTreeColors.nodeCriticism;
+    if (isSelected) return PhiloTreeColors.nodeSelected;
     return PhiloTreeColors.nodeNormal;
   };
 
-  const getNodeSize = () => {
-    // 固定サイズ
-    return 120;
-  };
+  // タイトルの長さに基づいてノードサイズを動的に計算
+  const nodeSize = useMemo(() => {
+    const title = isCriticism ? (node.title || '（タイトルなし）') : node.title;
+    const titleLength = title.length;
+    
+    // 基本サイズ
+    let baseSize = 120;
+    
+    // タイトル長に応じてサイズを調整
+    if (titleLength <= 10) {
+      baseSize = 100;
+    } else if (titleLength <= 20) {
+      baseSize = 120;
+    } else if (titleLength <= 30) {
+      baseSize = 140;
+    } else if (titleLength <= 40) {
+      baseSize = 160;
+    } else if (titleLength <= 50) {
+      baseSize = 180;
+    } else {
+      baseSize = 200;
+    }
+    
+    // 批評ノードは少し小さく
+    if (isCriticism) {
+      baseSize = Math.max(80, baseSize - 20);
+    }
+    
+    return baseSize;
+  }, [node.title, isCriticism]);
 
-  const nodeSize = getNodeSize();
+  // フォントサイズも動的に調整
+  const fontSize = useMemo(() => {
+    const title = isCriticism ? (node.title || '（タイトルなし）') : node.title;
+    const titleLength = title.length;
+    
+    if (titleLength <= 10) return 16;
+    if (titleLength <= 20) return 14;
+    if (titleLength <= 30) return 13;
+    if (titleLength <= 40) return 12;
+    if (titleLength <= 50) return 11;
+    return 10;
+  }, [node.title, isCriticism]);
+
+  // ダブルタップ判定
+  const lastTap = useRef(0);
+  const handleTap = () => {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      onPress?.();
+    } else {
+      onSelect?.();
+    }
+    lastTap.current = now;
+  };
 
   return (
     <View style={[
@@ -58,6 +112,8 @@ export default function ThoughtNode({
       <TouchableOpacity
         style={[
           styles.node,
+          isCriticism ? styles.criticismNode : styles.normalNode,
+          isOrphanCriticism && styles.orphanCriticismNode,
           {
             width: nodeSize,
             height: nodeSize,
@@ -65,35 +121,43 @@ export default function ThoughtNode({
             borderColor: isSelected ? PhiloTreeColors.textPrimary : 'transparent',
           },
         ]}
-        onPress={onPress}
+        onPress={handleTap}
         onLongPress={onLongPress}
         activeOpacity={0.8}
       >
         <View style={styles.nodeContent}>
-          <Text style={styles.nodeTitle} numberOfLines={2}>
-            {node.title}
+          <Text 
+            style={[
+              styles.nodeTitle, 
+              { fontSize },
+              isOrphanCriticism && { color: '#111', fontWeight: 'bold' }
+            ]} 
+            numberOfLines={isCriticism ? 6 : 8}
+            adjustsFontSizeToFit={true}
+            minimumFontScale={0.3}
+          >
+            {isCriticism ? (node.title || '（タイトルなし）') : node.title}
           </Text>
-          
-          {node.source_gpt && (
+          {node.source_gpt && !isCriticism && (
             <View style={styles.sourceBadge}>
               <Text style={styles.sourceText}>GPT</Text>
             </View>
           )}
         </View>
       </TouchableOpacity>
-
-      {/* 子ノード追加ボタン */}
-      <TouchableOpacity
-        style={styles.addChildButton}
-        onPress={() => {
-          console.log('Add child button pressed for node:', node.id);
-          onAddChild?.();
-        }}
-        activeOpacity={0.8}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        <Text style={styles.addChildButtonText}>+</Text>
-      </TouchableOpacity>
+      {/* 子ノード追加ボタンは選択時のみ表示 */}
+      {isSelected && (
+        <TouchableOpacity
+          style={styles.addChildButton}
+          onPress={() => {
+            onAddChild?.();
+          }}
+          activeOpacity={0.8}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.addChildButtonText}>+</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -104,7 +168,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   node: {
-    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
@@ -114,18 +177,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
+  normalNode: {
+    borderRadius: 12,
+  },
+  criticismNode: {
+    borderRadius: 60,
+  },
   nodeContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 10,
+    padding: 12,
   },
   nodeTitle: {
-    fontSize: 14,
     fontWeight: 'bold',
     color: PhiloTreeColors.textPrimary,
     textAlign: 'center',
-    marginBottom: 5,
+    lineHeight: 18,
   },
   sourceBadge: {
     position: 'absolute',
@@ -162,5 +230,8 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: PhiloTreeColors.textPrimary,
     fontWeight: 'bold',
+  },
+  orphanCriticismNode: {
+    borderColor: '#000',
   },
 }); 

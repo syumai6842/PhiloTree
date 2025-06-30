@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
     ScrollView,
@@ -9,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PhiloTreeColors } from '../../constants/Colors';
+import { useFocusNode } from '../../contexts/FocusNodeContext';
 import { useThoughtMap } from '../../contexts/ThoughtMapContext';
 import { Criticism } from '../../types';
 
@@ -16,6 +18,8 @@ export default function ExploreScreen() {
   const { state } = useThoughtMap();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedScholar, setSelectedScholar] = useState<string | 'all'>('all');
+  const { focusNode } = useFocusNode();
+  const router = useRouter();
 
   // 学者名の一覧を取得
   const scholarNames = useMemo(() => {
@@ -171,7 +175,15 @@ export default function ExploreScreen() {
           searchResults.map((node) => {
             const nodeCriticisms = getNodeCriticisms(node.id);
             return (
-              <View key={node.id} style={styles.nodeItem}>
+              <TouchableOpacity
+                key={node.id}
+                style={styles.nodeItem}
+                activeOpacity={0.8}
+                onPress={() => {
+                  focusNode(node.id);
+                  router.replace('/');
+                }}
+              >
                 <View style={styles.nodeHeader}>
                   <Text style={styles.nodeTitle}>{node.title}</Text>
                   <View style={styles.nodeBadges}>
@@ -185,21 +197,28 @@ export default function ExploreScreen() {
                 <Text style={styles.nodeContent} numberOfLines={3}>
                   {node.content || '内容なし'}
                 </Text>
-                
                 {/* 関連する批評を表示 */}
                 {nodeCriticisms.length > 0 && (
                   <View style={styles.criticismsContainer}>
                     <Text style={styles.criticismsTitle}>関連する批評:</Text>
                     {nodeCriticisms.slice(0, 2).map((criticism, index) => (
-                      <View key={criticism.id} style={[
-                        styles.criticismItem,
-                        index === nodeCriticisms.slice(0, 2).length - 1 && styles.criticismItemLast
-                      ]}>
+                      <TouchableOpacity
+                        key={criticism.id}
+                        style={[
+                          styles.criticismItem,
+                          index === nodeCriticisms.slice(0, 2).length - 1 && styles.criticismItemLast
+                        ]}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          focusNode(criticism.id);
+                          router.replace('/');
+                        }}
+                      >
                         <Text style={styles.scholarName}>{criticism.scholar_name}</Text>
                         <Text style={styles.criticismComment} numberOfLines={2}>
-                          {criticism.comment}
+                          {criticism.content}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                     {nodeCriticisms.length > 2 && (
                       <Text style={styles.moreCriticisms}>
@@ -208,14 +227,13 @@ export default function ExploreScreen() {
                     )}
                   </View>
                 )}
-                
                 <View style={styles.nodeMeta}>
                   <Text style={styles.nodeDate}>{formatDate(node.created_at)}</Text>
                   {node.parent_ids && node.parent_ids.length > 0 && (
                     <Text style={styles.nodeParent}>親ノードあり</Text>
                   )}
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}

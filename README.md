@@ -269,14 +269,18 @@ eas build --platform android
 
 
 SubaBase SQLスキーマ
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
 CREATE TABLE public.criticisms (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   node_id uuid,
   scholar_name text NOT NULL,
   field text,
-  comment text NOT NULL,
+  title text NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
   source_url text,
+  content text,
   CONSTRAINT criticisms_pkey PRIMARY KEY (id),
   CONSTRAINT criticisms_node_id_fkey FOREIGN KEY (node_id) REFERENCES public.nodes(id)
 );

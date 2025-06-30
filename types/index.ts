@@ -15,7 +15,8 @@ export interface Criticism {
   node_id?: string;
   scholar_name: string;
   field?: string;
-  comment: string;
+  title: string;
+  content: string;
   created_at: string;
   source_url?: string;
 }
@@ -52,7 +53,8 @@ export interface CreateCriticismRequest {
   node_id?: string;
   scholar_name: string;
   field?: string;
-  comment: string;
+  title: string;
+  content: string;
   source_url?: string;
 }
 

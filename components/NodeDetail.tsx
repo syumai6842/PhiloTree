@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import {
     Alert,
     ScrollView,
@@ -12,114 +12,126 @@ import { PhiloTreeColors } from '../constants/Colors';
 import { useThoughtMap } from '../contexts/ThoughtMapContext';
 import { Criticism, Node } from '../types';
 
+export interface NodeDetailHandle {
+  save: () => Promise<void>;
+}
+
 interface NodeDetailProps {
   node: Node;
   criticisms?: Criticism[];
   onClose?: () => void;
+  onFocusNode?: (nodeId: string) => void;
 }
 
-export default function NodeDetail({ node, criticisms = [], onClose }: NodeDetailProps) {
-  const { updateNode } = useThoughtMap();
-  const [isEditing, setIsEditing] = useState(false);
-  const [title, setTitle] = useState(node.title);
-  const [content, setContent] = useState(node.content || '');
+function isCriticismNode(node: any): node is { scholar_name: string } {
+  return typeof node.scholar_name === 'string' && node.scholar_name.length > 0;
+}
 
-  useEffect(() => {
-    setTitle(node.title);
-    setContent(node.content || '');
-  }, [node]);
+const NodeDetail = forwardRef<NodeDetailHandle, NodeDetailProps>(
+  function NodeDetail({ node, criticisms = [], onClose, onFocusNode }, ref) {
+    const { updateNode } = useThoughtMap();
+    const [isEditing, setIsEditing] = useState(true);
+    const [title, setTitle] = useState(node.title);
+    const [content, setContent] = useState(node.content || '');
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+    useEffect(() => {
+      setTitle(node.title);
+      setContent(node.content || '');
+      setIsEditing(true);
+    }, [node]);
 
-  const handleSave = async () => {
-    if (!title.trim()) {
-      Alert.alert('エラー', 'タイトルを入力してください');
-      return;
-    }
+    useEffect(() => {
+      return () => {
+        if (isEditing && (title !== node.title || content !== (node.content || ''))) {
+          handleSave();
+        }
+      };
+    }, [isEditing, title, content, node]);
 
-    try {
-      await updateNode({
-        id: node.id,
-        title: title.trim(),
-        content: content.trim(),
+    const formatDate = (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('ja-JP', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
       });
+    };
+
+    const handleSave = async () => {
+      if (!title.trim()) {
+        Alert.alert('エラー', 'タイトルを入力してください');
+        return;
+      }
+
+      try {
+        await updateNode({
+          id: node.id,
+          title: title.trim(),
+          content: content.trim(),
+        });
+        setIsEditing(false);
+      } catch (error) {
+        Alert.alert('エラー', '保存に失敗しました');
+      }
+    };
+
+    const handleCancel = () => {
+      setTitle(node.title);
+      setContent(node.content || '');
       setIsEditing(false);
-    } catch (error) {
-      Alert.alert('エラー', '保存に失敗しました');
-    }
-  };
+    };
 
-  const handleCancel = () => {
-    setTitle(node.title);
-    setContent(node.content || '');
-    setIsEditing(false);
-  };
+    const handleClose = async () => {
+      await handleSave();
+      onClose?.();
+    };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          {isEditing ? (
+    useImperativeHandle(ref, () => ({
+      save: handleSave
+    }));
+
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
             <TextInput
-              style={styles.titleInput}
+              style={[styles.titleInput, { textAlignVertical: 'top' }]}
               value={title}
               onChangeText={setTitle}
               placeholder="タイトルを入力"
               placeholderTextColor={PhiloTreeColors.textMuted}
               maxLength={50}
+              multiline
             />
-          ) : (
-            <Text style={styles.title}>{node.title}</Text>
-          )}
-          <View style={styles.meta}>
-            {node.source_gpt && (
-              <View style={styles.sourceBadge}>
-                <Text style={styles.sourceText}>GPT生成</Text>
-              </View>
+            <View style={styles.meta}>
+              {isCriticismNode(node) && (
+                <View style={styles.sourceBadge}>
+                  <Text style={styles.sourceText}>{node.scholar_name}</Text>
+                </View>
+              )}
+              {node.source_gpt && (
+                <View style={styles.sourceBadge}>
+                  <Text style={styles.sourceText}>GPT生成</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          <View style={styles.headerActions}>
+            {onClose && (
+              <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+                <Text style={styles.closeButtonText}>×</Text>
+              </TouchableOpacity>
             )}
           </View>
         </View>
-        <View style={styles.headerActions}>
-          {isEditing ? (
-            <>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-                <Text style={styles.cancelButtonText}>キャンセル</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                <Text style={styles.saveButtonText}>保存</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <TouchableOpacity style={styles.editButton} onPress={() => setIsEditing(true)}>
-                <Text style={styles.editButtonText}>編集</Text>
-              </TouchableOpacity>
-              {onClose && (
-                <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                  <Text style={styles.closeButtonText}>×</Text>
-                </TouchableOpacity>
-              )}
-            </>
-          )}
-        </View>
-      </View>
 
-      <ScrollView style={styles.content}>
-        {/* 内容 */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>内容</Text>
-          {isEditing ? (
+        <ScrollView style={styles.content}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>内容</Text>
             <TextInput
-              style={[styles.contentText, styles.contentInput]}
+              style={[styles.contentText, styles.contentInput, { textAlignVertical: 'top', minHeight: 120 }]}
               value={content}
               onChangeText={setContent}
               placeholder="内容を入力"
@@ -128,61 +140,62 @@ export default function NodeDetail({ node, criticisms = [], onClose }: NodeDetai
               numberOfLines={6}
               maxLength={1000}
             />
-          ) : (
-            <Text style={styles.contentText}>
-              {node.content || '内容が設定されていません'}
-            </Text>
-          )}
-        </View>
+          </View>
 
-        {/* 批評 */}
-        {criticisms.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>批評 ({criticisms.length})</Text>
-            {criticisms.map((criticism) => (
-              <View key={criticism.id} style={styles.criticismItem}>
-                <View style={styles.criticismHeader}>
-                  <Text style={styles.criticismScholar}>{criticism.scholar_name}</Text>
-                  {criticism.field && (
-                    <Text style={styles.criticismField}>{criticism.field}</Text>
-                  )}
-                </View>
-                <Text style={styles.criticismContent}>{criticism.comment}</Text>
-                <View style={styles.criticismMeta}>
-                  <Text style={styles.criticismDate}>
-                    {formatDate(criticism.created_at)}
-                  </Text>
-                  {criticism.source_url && (
-                    <Text style={styles.criticismSource}>出典あり</Text>
-                  )}
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* メタデータ */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>メタデータ</Text>
-          <View style={styles.metadataItem}>
-            <Text style={styles.metadataLabel}>作成日時:</Text>
-            <Text style={styles.metadataValue}>{formatDate(node.created_at)}</Text>
-          </View>
-          <View style={styles.metadataItem}>
-            <Text style={styles.metadataLabel}>更新日時:</Text>
-            <Text style={styles.metadataValue}>{formatDate(node.updated_at)}</Text>
-          </View>
-          {node.parent_ids && node.parent_ids.length > 0 && (
-            <View style={styles.metadataItem}>
-              <Text style={styles.metadataLabel}>親ノード:</Text>
-              <Text style={styles.metadataValue}>{node.parent_ids.length}個</Text>
+          {criticisms.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>批評 ({criticisms.length})</Text>
+              {criticisms.map((criticism) => (
+                <TouchableOpacity
+                  key={criticism.id}
+                  style={styles.criticismItem}
+                  activeOpacity={0.8}
+                  onPress={() => onFocusNode?.(criticism.id)}
+                >
+                  <View style={styles.criticismHeader}>
+                    <Text style={styles.criticismScholar}>{criticism.scholar_name}</Text>
+                    {criticism.field && (
+                      <Text style={styles.criticismField}>{criticism.field}</Text>
+                    )}
+                  </View>
+                  <Text style={styles.criticismContent}>{criticism.content}</Text>
+                  <View style={styles.criticismMeta}>
+                    <Text style={styles.criticismDate}>
+                      {formatDate(criticism.created_at)}
+                    </Text>
+                    {criticism.source_url && (
+                      <Text style={styles.criticismSource}>出典あり</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
             </View>
           )}
-        </View>
-      </ScrollView>
-    </View>
-  );
-}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>メタデータ</Text>
+            <View style={styles.metadataItem}>
+              <Text style={styles.metadataLabel}>作成日時:</Text>
+              <Text style={styles.metadataValue}>{formatDate(node.created_at)}</Text>
+            </View>
+            <View style={styles.metadataItem}>
+              <Text style={styles.metadataLabel}>更新日時:</Text>
+              <Text style={styles.metadataValue}>{formatDate(node.updated_at)}</Text>
+            </View>
+            {node.parent_ids && node.parent_ids.length > 0 && (
+              <View style={styles.metadataItem}>
+                <Text style={styles.metadataLabel}>親ノード:</Text>
+                <Text style={styles.metadataValue}>{node.parent_ids.length}個</Text>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+);
+
+export default NodeDetail;
 
 const styles = StyleSheet.create({
   container: {

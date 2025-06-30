@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { FocusNodeProvider } from '../contexts/FocusNodeContext';
 import { ThoughtMapProvider } from '../contexts/ThoughtMapContext';
 
 export default function RootLayout() {
@@ -20,13 +21,15 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <ThoughtMapProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-        <StatusBar style="auto" />
-      </ThoughtMapProvider>
+      <FocusNodeProvider>
+        <ThoughtMapProvider>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <StatusBar style="auto" />
+        </ThoughtMapProvider>
+      </FocusNodeProvider>
     </ThemeProvider>
   );
 }

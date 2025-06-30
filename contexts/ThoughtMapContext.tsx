@@ -1,13 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useReducer } from 'react';
+import { Platform } from 'react-native';
 import { REALTIME_CHANNELS, supabase, TABLES } from '../lib/supabase';
 import {
-    CreateCriticismRequest,
-    CreateNodeRequest,
-    Criticism,
-    Node,
-    ThoughtMapState,
-    UpdateNodeRequest
+  CreateCriticismRequest,
+  CreateNodeRequest,
+  Criticism,
+  Node,
+  ThoughtMapState,
+  UpdateNodeRequest
 } from '../types';
 
 // アクション型定義
@@ -129,6 +130,7 @@ interface ThoughtMapContextType {
   saveState: () => Promise<void>;
   clearState: () => Promise<void>;
   syncFromSupabase: () => Promise<void>;
+  getCompletionRate: (nodeId: string | undefined) => { completed: number; total: number; percentage: number };
 }
 
 // コンテキスト作成
@@ -301,7 +303,8 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
       node_id: criticismData.node_id,
       scholar_name: criticismData.scholar_name,
       field: criticismData.field,
-      comment: criticismData.comment,
+      title: criticismData.title,
+      content: criticismData.content,
       created_at: new Date().toISOString(),
       source_url: criticismData.source_url,
     };
@@ -389,10 +392,12 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
   // 状態読み込み
   const loadState = async () => {
     try {
-      const savedState = await AsyncStorage.getItem('thoughtMapState');
-      if (savedState) {
-        const parsedState = JSON.parse(savedState);
-        dispatch({ type: 'LOAD_STATE', payload: parsedState });
+      if (Platform.OS !== 'web') {
+        const savedState = await AsyncStorage.getItem('thoughtMapState');
+        if (savedState) {
+          const parsedState = JSON.parse(savedState);
+          dispatch({ type: 'LOAD_STATE', payload: parsedState });
+        }
       }
     } catch (error) {
       console.error('Failed to load state:', error);
@@ -402,7 +407,9 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
   // 状態保存
   const saveState = async () => {
     try {
-      await AsyncStorage.setItem('thoughtMapState', JSON.stringify(state));
+      if (Platform.OS !== 'web') {
+        await AsyncStorage.setItem('thoughtMapState', JSON.stringify(state));
+      }
     } catch (error) {
       console.error('Failed to save state:', error);
     }
@@ -411,7 +418,64 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
   // 状態クリア
   const clearState = async () => {
     dispatch({ type: 'CLEAR_STATE' });
-    await AsyncStorage.removeItem('thoughtMapState');
+    if (Platform.OS !== 'web') {
+      await AsyncStorage.removeItem('thoughtMapState');
+    }
+  };
+
+  // 達成度計算
+  const getCompletionRate = (nodeId: string | undefined) => {
+    if (!nodeId) {
+      return { completed: 0, total: 0, percentage: 0 };
+    }
+    
+    // 選択されたノードとその全ての子ノード（入れ子構造）を再帰的に取得
+    const getAllChildNodeIds = (parentId: string, visited: Set<string> = new Set()): Set<string> => {
+      if (visited.has(parentId)) return visited;
+      visited.add(parentId);
+      
+      // 直接の子ノードを取得
+      const childNodes = state.nodes.filter(node => node.parent_ids.includes(parentId));
+      const childCriticisms = state.criticisms.filter(c => c.node_id === parentId);
+      
+      // 子ノードを再帰的に探索
+      childNodes.forEach(child => {
+        getAllChildNodeIds(child.id, visited);
+      });
+      
+      // 子批評ノードを再帰的に探索
+      childCriticisms.forEach(child => {
+        getAllChildNodeIds(child.id, visited);
+      });
+      
+      return visited;
+    };
+    
+    // 選択されたノードとその全ての子ノードのIDを取得
+    const allNodeIds = getAllChildNodeIds(nodeId);
+    
+    // 全ての子ノードに紐づけられた批評ノードを取得
+    const allCriticisms = state.criticisms.filter(c => allNodeIds.has(c.node_id || ''));
+    
+    if (allCriticisms.length === 0) {
+      return { completed: 0, total: 0, percentage: 0 };
+    }
+    
+    // 子ノードが存在する批評ノードの数を計算（達成）
+    const completedCriticisms = allCriticisms.filter(criticism => {
+      // この批評ノードに子ノード（Node）が存在するかチェック
+      const hasChildNodes = state.nodes.some(node => node.parent_ids.includes(criticism.id));
+      // この批評ノードに子批評ノードが存在するかチェック
+      const hasChildCriticisms = state.criticisms.some(c => c.node_id === criticism.id);
+      
+      return hasChildNodes || hasChildCriticisms;
+    });
+    
+    const completed = completedCriticisms.length;
+    const total = allCriticisms.length;
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+    
+    return { completed, total, percentage };
   };
 
   const value: ThoughtMapContextType = {
@@ -429,6 +493,7 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
     saveState,
     clearState,
     syncFromSupabase,
+    getCompletionRate,
   };
 
   return (

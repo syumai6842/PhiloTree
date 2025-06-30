@@ -17,6 +17,7 @@ paths:
       summary: ノード、批評を作成
       description: MyGPTsから思想ツリーに新しいノード、批評を追加します
       operationId: receiveNode
+      x-openai-isConsequential: false
       tags:
         - Nodes
       requestBody:
@@ -88,6 +89,7 @@ paths:
       summary: ノード一覧を取得
       description: 思想ツリーの全ノードと批評を取得します
       operationId: getNodes
+      x-openai-isConsequential: false
       tags:
         - Nodes
       responses:
@@ -149,6 +151,7 @@ paths:
       summary: ノードを編集
       description: 指定したIDのノードのタイトルや内容などを編集します
       operationId: updateNode
+      x-openai-isConsequential: false
       tags:
         - Nodes
       parameters:
@@ -220,6 +223,7 @@ paths:
       summary: ノードを削除
       description: 指定したIDのノードを削除します
       operationId: deleteNode
+      x-openai-isConsequential: false
       tags:
         - Nodes
       parameters:
@@ -293,49 +297,44 @@ components:
         title:
           type: string
           description: ノードのタイトル
-          maxLength: 100
         content:
           type: string
           description: ノードの内容
-          maxLength: 1000
         parent_ids:
           type: array
           items:
             type: string
             format: uuid
           description: 親ノードのID配列
-          default: []
         source_gpt:
           type: string
           description: 作成元のGPT名
-          example: "GPT-4"
 
     CriticismData:
       type: object
       required:
-        - comment
+        - title
         - scholar_name
       properties:
-        comment:
+        title:
           type: string
-          description: 批評内容
-          maxLength: 1000
-        scholar_name:
-          type: string
-          description: 学者名
-          maxLength: 50
+          description: 批評ノードのタイトル
         node_id:
           type: string
           format: uuid
           description: 批評対象のノードID
+        scholar_name:
+          type: string
+          description: 学者名
         field:
           type: string
           description: 学問分野
-          maxLength: 100
+        content:
+          type: string
+          description: 批評内容
         source_url:
           type: string
           description: 参考文献URL
-          format: uri
 
     Node:
       type: object
@@ -385,9 +384,9 @@ components:
         field:
           type: string
           description: 学問分野
-        comment:
+        title:
           type: string
-          description: 批評内容
+          description: 批評ノードのタイトル
         created_at:
           type: string
           format: date-time
@@ -395,6 +394,9 @@ components:
         source_url:
           type: string
           description: 参考文献URL
+        content:
+          type: string
+          description: 批評内容
 
     UpdateNodeRequest:
       type: object

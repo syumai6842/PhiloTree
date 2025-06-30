@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -10,26 +10,45 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import NodeDetail from '../../components/NodeDetail';
-import ThoughtMap from '../../components/ThoughtMap';
+import CompletionGauge from '../../components/CompletionGauge';
+import NodeDetail, { NodeDetailHandle } from '../../components/NodeDetail';
+import ThoughtMap, { ThoughtMapHandle } from '../../components/ThoughtMap';
 import { PhiloTreeColors } from '../../constants/Colors';
+import { useFocusNode } from '../../contexts/FocusNodeContext';
 import { useThoughtMap } from '../../contexts/ThoughtMapContext';
 import { Node } from '../../types';
 
 export default function ThoughtMapScreen() {
-  const { state, loadState, addNode } = useThoughtMap();
+  const { state, loadState, addNode, getCompletionRate } = useThoughtMap();
   const [nodeDetailVisible, setNodeDetailVisible] = useState(false);
   const [titleInputVisible, setTitleInputVisible] = useState(false);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [parentNode, setParentNode] = useState<Node | null>(null);
   const [newNodeTitle, setNewNodeTitle] = useState('');
+  const thoughtMapRef = useRef<ThoughtMapHandle>(null);
+  const { pendingNodeId, clearPending } = useFocusNode();
+  const nodeDetailRef = useRef<NodeDetailHandle>(null);
+  const nodeDetailVisibleRef = useRef(nodeDetailVisible);
 
   useEffect(() => {
     loadState();
   }, []);
 
+  // pendingNodeIdがセットされたらジャンプ＆UI閉じる
+  useEffect(() => {
+    if (pendingNodeId) {
+      setNodeDetailVisible(false);
+      setTimeout(() => {
+        thoughtMapRef.current?.focusNode(pendingNodeId);
+        clearPending();
+      }, 500);
+    }
+  }, [pendingNodeId]);
+
+  useEffect(() => {
+    nodeDetailVisibleRef.current = nodeDetailVisible;
+  }, [nodeDetailVisible]);
+
   const handleNodePress = (node: Node) => {
-    setSelectedNode(node);
     setNodeDetailVisible(true);
   };
 
@@ -71,21 +90,41 @@ export default function ThoughtMapScreen() {
 
   const handleNodeDetailClose = () => {
     setNodeDetailVisible(false);
-    setSelectedNode(null);
   };
+
+  // 選択されたノードの達成度を計算
+  const selectedNode = state.selectedNodeId ? 
+    state.nodes.find(n => n.id === state.selectedNodeId) || 
+    state.criticisms.find(c => c.id === state.selectedNodeId) : null;
+  const completionData = selectedNode ? getCompletionRate(selectedNode.id) : { completed: 0, total: 0, percentage: 0 };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={PhiloTreeColors.background} />
       
+      {/* 達成度ゲージ */}
+      {selectedNode && (
+        <View style={styles.gaugeContainer}>
+          <CompletionGauge 
+            completed={completionData.completed}
+            total={completionData.total}
+            percentage={completionData.percentage}
+          />
+        </View>
+      )}
+      
       {/* 思想マップ */}
       <View style={styles.mapContainer}>
         <ThoughtMap
+          ref={thoughtMapRef}
           onNodePress={handleNodePress}
           onNodeLongPress={handleNodeLongPress}
           onAddChildNode={handleAddChildNode}
         />
       </View>
+
+      {/* 検索画面（例: タブやモーダルで表示する場合） */}
+      {/* <ExploreScreen onFocusNode={nodeId => thoughtMapRef.current?.focusNode(nodeId)} /> */}
 
       {/* タイトル入力モーダル（子ノード追加用） */}
       <Modal
@@ -136,7 +175,7 @@ export default function ThoughtMapScreen() {
 
       {/* ノード詳細・編集モーダル */}
       <Modal
-        visible={nodeDetailVisible}
+        visible={nodeDetailVisible && !!selectedNode}
         animationType="slide"
         transparent={true}
         onRequestClose={handleNodeDetailClose}
@@ -145,9 +184,11 @@ export default function ThoughtMapScreen() {
           <View style={styles.modalContainer}>
             {selectedNode && (
               <NodeDetail
-                node={selectedNode}
+                ref={nodeDetailRef}
+                node={selectedNode as Node}
                 criticisms={state.criticisms.filter(c => c.node_id === selectedNode.id)}
                 onClose={handleNodeDetailClose}
+                onFocusNode={nodeId => thoughtMapRef.current?.focusNode(nodeId)}
               />
             )}
           </View>
@@ -162,29 +203,34 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: PhiloTreeColors.background,
   },
+  gaugeContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
   mapContainer: {
     flex: 1,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: PhiloTreeColors.overlay,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   titleInputContainer: {
-    width: '90%',
     backgroundColor: PhiloTreeColors.backgroundSecondary,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: PhiloTreeColors.border,
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+    maxWidth: 400,
   },
   titleInputHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: PhiloTreeColors.border,
+    marginBottom: 20,
   },
   titleInputTitle: {
     fontSize: 18,
@@ -194,59 +240,59 @@ const styles = StyleSheet.create({
   closeButton: {
     width: 30,
     height: 30,
+    borderRadius: 15,
+    backgroundColor: PhiloTreeColors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
   closeButtonText: {
-    fontSize: 24,
-    color: PhiloTreeColors.textSecondary,
+    fontSize: 20,
+    color: PhiloTreeColors.textPrimary,
+    fontWeight: 'bold',
   },
   titleInputContent: {
-    padding: 20,
+    marginBottom: 20,
   },
   titleInputLabel: {
     fontSize: 16,
-    fontWeight: '600',
     color: PhiloTreeColors.textPrimary,
     marginBottom: 8,
   },
   titleInput: {
     backgroundColor: PhiloTreeColors.background,
-    borderWidth: 1,
-    borderColor: PhiloTreeColors.border,
     borderRadius: 8,
     padding: 12,
-    color: PhiloTreeColors.textPrimary,
     fontSize: 16,
+    color: PhiloTreeColors.textPrimary,
+    borderWidth: 1,
+    borderColor: PhiloTreeColors.border,
   },
   titleInputActions: {
     flexDirection: 'row',
-    padding: 20,
-    gap: 10,
+    justifyContent: 'space-between',
   },
   titleInputButton: {
     flex: 1,
-    paddingVertical: 12,
+    padding: 12,
     borderRadius: 8,
     alignItems: 'center',
+    marginHorizontal: 4,
+  },
+  cancelButton: {
+    backgroundColor: PhiloTreeColors.background,
   },
   saveButton: {
     backgroundColor: PhiloTreeColors.nodeNormal,
   },
-  saveButtonText: {
-    color: PhiloTreeColors.textPrimary,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  cancelButton: {
-    backgroundColor: PhiloTreeColors.background,
-    borderWidth: 1,
-    borderColor: PhiloTreeColors.border,
-  },
   cancelButtonText: {
     color: PhiloTreeColors.textPrimary,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '500',
+  },
+  saveButtonText: {
+    color: PhiloTreeColors.textPrimary,
+    fontSize: 16,
+    fontWeight: '500',
   },
   modalContainer: {
     width: '90%',

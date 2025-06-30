@@ -19,15 +19,12 @@ export default function TabLayout() {
             backgroundColor: PhiloTreeColors.backgroundSecondary,
             borderTopColor: PhiloTreeColors.border,
           },
-          headerStyle: {
-            backgroundColor: PhiloTreeColors.backgroundSecondary,
-          },
-          headerTintColor: PhiloTreeColors.textPrimary,
+          headerShown: false,
         }}>
         <Tabs.Screen
           name="index"
           options={{
-            title: '思想マップ',
+            title: '達成度',
             tabBarIcon: ({ color }) => <TabBarIcon name="map" color={color} />,
           }}
         />

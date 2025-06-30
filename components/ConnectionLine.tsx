@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import Svg, { Line } from 'react-native-svg';
 import { PhiloTreeColors } from '../constants/Colors';
 
 interface NodePosition {
@@ -13,39 +13,43 @@ interface ConnectionLineProps {
   isSelected?: boolean;
 }
 
-export default function ConnectionLine({ startPos, endPos, isSelected }: ConnectionLineProps) {
-  // 接続線の計算
-  const startX = startPos.x + 60; // 親ノードの中心
+export default function ConnectionLine({ startPos, endPos, isSelected, isDashed = false }: ConnectionLineProps & { isDashed?: boolean }) {
+  // ノード中心座標
+  const startX = startPos.x + 60;
   const startY = startPos.y + 60;
-  const endX = endPos.x + 60; // 子ノードの中心
+  const endX = endPos.x + 60;
   const endY = endPos.y + 60;
 
-  // 線の長さと角度を計算
-  const deltaX = endX - startX;
-  const deltaY = endY - startY;
-  const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-  const angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
+  // SVGの描画領域
+  const minX = Math.min(startX, endX);
+  const minY = Math.min(startY, endY);
+  const width = Math.abs(endX - startX) || 2;
+  const height = Math.abs(endY - startY) || 2;
 
-  // 線のスタイル
-  const lineStyle = {
-    position: 'absolute' as const,
-    left: startX,
-    top: startY,
-    width: length,
-    height: 2,
-    backgroundColor: isSelected ? PhiloTreeColors.connectionLineSelected : PhiloTreeColors.connectionLine,
-    transform: [
-      { translateX: -length / 2 },
-      { translateY: -1 },
-      { rotate: `${angle}deg` },
-    ],
-  };
+  // SVGの線の始点・終点（ローカル座標）
+  const x1 = startX - minX;
+  const y1 = startY - minY;
+  const x2 = endX - minX;
+  const y2 = endY - minY;
 
   return (
-    <View style={lineStyle} />
+    <Svg
+      style={{ position: 'absolute', left: minX, top: minY, pointerEvents: 'none' }}
+      width={width}
+      height={height}
+    >
+      <Line
+        x1={x1}
+        y1={y1}
+        x2={x2}
+        y2={y2}
+        stroke={isSelected ? PhiloTreeColors.connectionLineSelected : PhiloTreeColors.connectionLine}
+        strokeWidth={3}
+        strokeLinecap="round"
+        strokeDasharray={isDashed ? '8,8' : undefined}
+      />
+    </Svg>
   );
 }
 
-const styles = StyleSheet.create({
-  // スタイルはインラインで適用
-}); 
+// スタイルは不要 
