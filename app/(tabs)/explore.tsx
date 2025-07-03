@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PhiloTreeColors } from '../../constants/Colors';
@@ -109,40 +109,48 @@ export default function ExploreScreen() {
       </View>
 
       {/* 学者名フィルター */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            selectedScholar === 'all' && styles.filterButtonActive,
-          ]}
-          onPress={() => setSelectedScholar('all')}
+      <View style={styles.filterContainer}>
+        <ScrollView 
+          style={styles.filterScrollView}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={true}
         >
-          <Text style={[
-            styles.filterButtonText,
-            selectedScholar === 'all' && styles.filterButtonTextActive,
-          ]}>
-            すべて
-          </Text>
-        </TouchableOpacity>
-        
-        {scholarNames.map((scholarName) => (
-          <TouchableOpacity
-            key={scholarName}
-            style={[
-              styles.filterButton,
-              selectedScholar === scholarName && styles.filterButtonActive,
-            ]}
-            onPress={() => setSelectedScholar(scholarName)}
-          >
-            <Text style={[
-              styles.filterButtonText,
-              selectedScholar === scholarName && styles.filterButtonTextActive,
-            ]}>
-              {scholarName}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+          <View style={styles.filterTagsContainer}>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                selectedScholar === 'all' && styles.filterButtonActive,
+              ]}
+              onPress={() => setSelectedScholar('all')}
+            >
+              <Text style={[
+                styles.filterButtonText,
+                selectedScholar === 'all' && styles.filterButtonTextActive,
+              ]}>
+                すべて
+              </Text>
+            </TouchableOpacity>
+            
+            {scholarNames.map((scholarName) => (
+              <TouchableOpacity
+                key={scholarName}
+                style={[
+                  styles.filterButton,
+                  selectedScholar === scholarName && styles.filterButtonActive,
+                ]}
+                onPress={() => setSelectedScholar(scholarName)}
+              >
+                <Text style={[
+                  styles.filterButtonText,
+                  selectedScholar === scholarName && styles.filterButtonTextActive,
+                ]}>
+                  {scholarName}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
 
       {/* 統計情報 */}
       <View style={styles.statsContainer}>
@@ -267,6 +275,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: PhiloTreeColors.border,
   },
+  filterTagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterScrollView: {
+    maxHeight: 120,
+  },
   filterButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -274,7 +290,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: PhiloTreeColors.border,
     backgroundColor: PhiloTreeColors.backgroundSecondary,
-    marginRight: 8,
   },
   filterButtonActive: {
     backgroundColor: PhiloTreeColors.nodeNormal,

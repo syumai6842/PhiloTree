@@ -35,10 +35,11 @@ const NodeDetail = forwardRef<NodeDetailHandle, NodeDetailProps>(
     const [content, setContent] = useState(node.content || '');
 
     useEffect(() => {
+      // 初回表示時またはノードIDが変更された時のみ値を設定
       setTitle(node.title);
       setContent(node.content || '');
       setIsEditing(true);
-    }, [node]);
+    }, [node.id]); // node.idのみを依存配列に含める
 
     useEffect(() => {
       return () => {
@@ -46,7 +47,7 @@ const NodeDetail = forwardRef<NodeDetailHandle, NodeDetailProps>(
           handleSave();
         }
       };
-    }, [isEditing, title, content, node]);
+    }, [isEditing, title, content, node.id]); // node.idのみを依存配列に含める
 
     const formatDate = (dateString: string) => {
       const date = new Date(dateString);

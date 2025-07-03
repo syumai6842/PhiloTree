@@ -115,8 +115,6 @@ export default function ThoughtNode({
           isCriticism ? styles.criticismNode : styles.normalNode,
           isOrphanCriticism && styles.orphanCriticismNode,
           {
-            width: nodeSize,
-            height: nodeSize,
             backgroundColor: getNodeColor(),
             borderColor: isSelected ? PhiloTreeColors.textPrimary : 'transparent',
           },
@@ -131,10 +129,8 @@ export default function ThoughtNode({
               styles.nodeTitle, 
               { fontSize },
               isOrphanCriticism && { color: '#111', fontWeight: 'bold' }
-            ]} 
-            numberOfLines={isCriticism ? 6 : 8}
-            adjustsFontSizeToFit={true}
-            minimumFontScale={0.3}
+            ]}
+            ellipsizeMode="tail"
           >
             {isCriticism ? (node.title || '（タイトルなし）') : node.title}
           </Text>
@@ -176,6 +172,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    minWidth: 120,
+    maxWidth: 260,
+    minHeight: 60,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   normalNode: {
     borderRadius: 12,
@@ -194,6 +195,8 @@ const styles = StyleSheet.create({
     color: PhiloTreeColors.textPrimary,
     textAlign: 'center',
     lineHeight: 18,
+    maxWidth: 240,
+    minWidth: 100,
   },
   sourceBadge: {
     position: 'absolute',
