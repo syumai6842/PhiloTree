@@ -43,7 +43,7 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
       const positions: Record<string, NodePosition> = {};
       const NODE_WIDTH = 120;
       const NODE_HEIGHT = 60;
-      const Y_GAP = 200;
+      const Y_GAP = 100;
       const X_GAP = 180;
 
       // 1. ノードの階層（深さ）を計算
