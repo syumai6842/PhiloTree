@@ -253,8 +253,8 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
         // 画面中央に来るようにパンを計算
         const centerX = screenWidth / 2;
         const centerY = screenHeight / 2;
-        const targetX = centerX - pos.x - nodeSize / 2;
-        const targetY = centerY - pos.y - nodeSize / 2;
+        const targetX = centerX - pos.x;
+        const targetY = centerY - pos.y;
         pan.setValue({ x: targetX, y: targetY });
         setPan({ x: targetX, y: targetY });
         setSelectedNode(nodeId);

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
     Dimensions,
     StyleSheet,
@@ -59,6 +59,9 @@ export default function ThoughtNode({
     return isCriticism ? 12 : 14;
   }, [isCriticism]);
 
+  // ノードサイズ計測用
+  const [size, setSize] = useState({ width: 120, height: 60 });
+
   // ダブルタップ判定
   const lastTap = useRef(0);
   const handleTap = () => {
@@ -78,13 +81,15 @@ export default function ThoughtNode({
   const top = position.y - nodeSize / 2;
 
   return (
-    <View style={[
-      styles.nodeContainer,
-      {
-        left,
-        top,
-      }
-    ]}>
+    <View
+      style={[
+        styles.nodeContainer,
+        {
+          left: position.x - nodeSize / 2,
+          top: position.y - nodeSize / 2,
+        },
+      ]}
+    >
       <TouchableOpacity
         style={[
           styles.node,
