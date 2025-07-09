@@ -15,11 +15,11 @@ interface ConnectionLineProps {
 }
 
 export default function ConnectionLine({ startPos, endPos, isSelected, isDashed = false }: ConnectionLineProps) {
-  // ノード中心座標
-  const startX = startPos.x + 60;
-  const startY = startPos.y + 60;
-  const endX = endPos.x + 60;
-  const endY = endPos.y + 60;
+  // ノード中心座標をそのまま利用
+  const startX = startPos.x;
+  const startY = startPos.y;
+  const endX = endPos.x;
+  const endY = endPos.y;
 
   // SVGの描画領域
   const minX = Math.min(startX, endX);
