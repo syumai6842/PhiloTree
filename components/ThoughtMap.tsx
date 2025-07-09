@@ -41,10 +41,13 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
     // ノード・批評ノード両方の位置を計算
     const nodePositions = useMemo(() => {
       const positions: Record<string, NodePosition> = {};
-      const NODE_WIDTH = 120;
       const NODE_HEIGHT = 60;
-      const Y_GAP = 100;
+      const Y_GAP = 150;
       const X_GAP = 180;
+
+      // 固定ノードサイズ
+      const NODE_WIDTH = 120;
+      const CRITICISM_WIDTH = 100;
 
       // 1. ノードの階層（深さ）を計算
       const nodeDepths: Record<string, number> = {};
@@ -101,72 +104,23 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
         }
       }
 
-      // 5. 各ノードの子要素の幅を計算
-      const nodeChildWidths: Record<string, number> = {};
-      
-      // 最下層から上に向かって子要素の幅を計算
-      const depths = Object.keys(nodesByDepth).map(Number).sort((a, b) => b - a);
-      depths.forEach(depth => {
-        const ids = nodesByDepth[depth] || [];
-        ids.forEach(id => {
-          const node = state.nodes.find(n => n.id === id);
-          if (!node) return;
-          
-          // 子ノードの幅を取得
-          const childNodes = state.nodes.filter(n => n.parent_ids.includes(id));
-          const childCriticisms = state.criticisms.filter(c => c.node_id === id);
-          
-          if (childNodes.length === 0 && childCriticisms.length === 0) {
-            // 子要素がない場合は固定幅
-            nodeChildWidths[id] = NODE_WIDTH;
-          } else {
-            // 子要素がある場合は子要素の幅の合計を計算
-            let totalChildWidth = 0;
-            childNodes.forEach(child => {
-              totalChildWidth += nodeChildWidths[child.id] || NODE_WIDTH;
-            });
-            childCriticisms.forEach(crit => {
-              totalChildWidth += NODE_WIDTH; // 批評ノードは固定幅
-            });
-            
-            // 子要素間のギャップを追加
-            const totalChildren = childNodes.length + childCriticisms.length;
-            if (totalChildren > 1) {
-              totalChildWidth += (totalChildren - 1) * X_GAP;
-            }
-            
-            // 親ノードの幅は子要素の幅の平均値に制限
-            const averageChildWidth = totalChildWidth / totalChildren;
-            nodeChildWidths[id] = Math.max(NODE_WIDTH, Math.min(totalChildWidth, averageChildWidth * 2));
-          }
-        });
-      });
-
-      // 6. ノードを配置（子要素の幅に基づいて）
+      // 6. ノードを配置（動的サイズで中央揃え）
       Object.entries(nodesByDepth).forEach(([depthStr, ids]) => {
         const depth = Number(depthStr);
         const y = 80 + depthToYIndex[depth] * Y_GAP;
         
-        // この階層の全幅を計算
-        let totalWidth = 0;
-        ids.forEach(id => {
-          totalWidth += nodeChildWidths[id] || NODE_WIDTH;
-        });
-        if (ids.length > 1) {
-          totalWidth += (ids.length - 1) * X_GAP;
-        }
-        
-        let startX = Math.max(80, (screenWidth - totalWidth) / 2);
-        let currentX = startX;
+        // この階層の全幅を計算（固定幅で計算）
+        const totalWidth = ids.length * NODE_WIDTH + (ids.length - 1) * X_GAP;
+        const startX = Math.max(80, (screenWidth - totalWidth) / 2);
         
         ids.forEach((id, idx) => {
-          const nodeWidth = nodeChildWidths[id] || NODE_WIDTH;
-          positions[id] = { x: currentX + nodeWidth / 2, y: y + NODE_HEIGHT / 2 };
-          currentX += nodeWidth + X_GAP;
+          const x = startX + idx * (NODE_WIDTH + X_GAP) + NODE_WIDTH / 2; // 中心座標を計算
+          const centerY = y + NODE_HEIGHT / 2; // 中心座標を計算
+          positions[id] = { x, y: centerY };
         });
       });
 
-      // 7. 批評ノードを「批評ノード階層」に配置
+      // 7. 批評ノードを「批評ノード階層」に配置（動的サイズで中央揃え）
       Object.entries(nodesByDepth).forEach(([depthStr, ids]) => {
         const depth = Number(depthStr);
         if (!insertCriticismLayer[depth]) return;
@@ -184,12 +138,13 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
         
         // 批評ノード階層に配置
         const y = 80 + (depthToYIndex[depth] + 1) * Y_GAP;
-        const totalWidth = criticisms.length * NODE_WIDTH + (criticisms.length - 1) * X_GAP;
-        let startX = Math.max(80, (screenWidth - totalWidth) / 2);
-        let currentX = startX;
+        const totalWidth = criticisms.length * CRITICISM_WIDTH + (criticisms.length - 1) * X_GAP;
+        const startX = Math.max(80, (screenWidth - totalWidth) / 2);
+        
         criticisms.forEach((crit, idx) => {
-          positions[crit.id] = { x: currentX + NODE_WIDTH / 2, y: y + NODE_HEIGHT / 2 };
-          currentX += NODE_WIDTH + X_GAP;
+          const x = startX + idx * (CRITICISM_WIDTH + X_GAP) + CRITICISM_WIDTH / 2; // 中心座標を計算
+          const centerY = y + NODE_HEIGHT / 2; // 中心座標を計算
+          positions[crit.id] = { x, y: centerY };
         });
       });
 
@@ -337,12 +292,15 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
             // Node→Node
             const nodeLines = node.parent_ids.map((parentId) => {
               const parentPos = nodePositions[parentId];
-              if (!parentPos) return null;
+              const parentNode = state.nodes.find(n => n.id === parentId);
+              if (!parentPos || !parentNode) return null;
               return (
                 <ConnectionLine
                   key={`connection-${parentId}-${node.id}`}
                   startPos={parentPos}
                   endPos={nodePos}
+                  startNode={parentNode}
+                  endNode={node}
                   isSelected={state.selectedNodeId === node.id || state.selectedNodeId === parentId}
                 />
               );
@@ -356,6 +314,8 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
                   key={`connection-${node.id}-criticism-${c.id}`}
                   startPos={nodePos}
                   endPos={cPos}
+                  startNode={node}
+                  endNode={c}
                   isSelected={state.selectedNodeId === node.id || state.selectedNodeId === c.id}
                   isDashed={true}
                 />

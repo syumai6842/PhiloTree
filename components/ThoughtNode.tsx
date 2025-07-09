@@ -45,49 +45,19 @@ export default function ThoughtNode({
     return PhiloTreeColors.nodeNormal;
   };
 
-  // タイトルの長さに基づいてノードサイズを動的に計算
+  // 固定サイズを使用
   const nodeSize = useMemo(() => {
-    const title = isCriticism ? (node.title || '（タイトルなし）') : node.title;
-    const titleLength = title.length;
-    
-    // 基本サイズ
-    let baseSize = 120;
-    
-    // タイトル長に応じてサイズを調整
-    if (titleLength <= 10) {
-      baseSize = 100;
-    } else if (titleLength <= 20) {
-      baseSize = 120;
-    } else if (titleLength <= 30) {
-      baseSize = 140;
-    } else if (titleLength <= 40) {
-      baseSize = 160;
-    } else if (titleLength <= 50) {
-      baseSize = 180;
-    } else {
-      baseSize = 200;
-    }
-    
     // 批評ノードは少し小さく
     if (isCriticism) {
-      baseSize = Math.max(80, baseSize - 20);
+      return 100;
     }
-    
-    return baseSize;
-  }, [node.title, isCriticism]);
+    return 120;
+  }, [isCriticism]);
 
-  // フォントサイズも動的に調整
+  // 固定フォントサイズ
   const fontSize = useMemo(() => {
-    const title = isCriticism ? (node.title || '（タイトルなし）') : node.title;
-    const titleLength = title.length;
-    
-    if (titleLength <= 10) return 16;
-    if (titleLength <= 20) return 14;
-    if (titleLength <= 30) return 13;
-    if (titleLength <= 40) return 12;
-    if (titleLength <= 50) return 11;
-    return 10;
-  }, [node.title, isCriticism]);
+    return isCriticism ? 12 : 14;
+  }, [isCriticism]);
 
   // ダブルタップ判定
   const lastTap = useRef(0);
@@ -101,12 +71,18 @@ export default function ThoughtNode({
     lastTap.current = now;
   };
 
+
+
+  // 中心座標から左上座標に変換
+  const left = position.x - nodeSize / 2;
+  const top = position.y - nodeSize / 2;
+
   return (
     <View style={[
       styles.nodeContainer,
       {
-        left: position.x,
-        top: position.y,
+        left,
+        top,
       }
     ]}>
       <TouchableOpacity

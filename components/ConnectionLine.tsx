@@ -12,14 +12,24 @@ interface ConnectionLineProps {
   endPos: NodePosition;
   isSelected?: boolean;
   isDashed?: boolean;
+  startNode?: any; // 開始ノード（サイズ計算用）
+  endNode?: any;   // 終了ノード（サイズ計算用）
 }
 
-export default function ConnectionLine({ startPos, endPos, isSelected, isDashed = false }: ConnectionLineProps) {
-  // ノード中心座標
-  const startX = startPos.x + 60;
-  const startY = startPos.y + 60;
-  const endX = endPos.x + 60;
-  const endY = endPos.y + 60;
+export default function ConnectionLine({ startPos, endPos, isSelected, isDashed = false, startNode, endNode }: ConnectionLineProps) {
+  // 固定サイズを使用
+  const getNodeSize = (node: any, isCriticism: boolean = false) => {
+    if (isCriticism) {
+      return 100;
+    }
+    return 120;
+  };
+
+  // positionは既に中心座標なのでそのまま使用
+  const startX = startPos.x;
+  const startY = startPos.y;
+  const endX = endPos.x;
+  const endY = endPos.y;
 
   // SVGの描画領域
   const minX = Math.min(startX, endX);
