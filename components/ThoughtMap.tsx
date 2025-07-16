@@ -41,7 +41,7 @@ export interface ThoughtMapHandle {
 const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
   function ThoughtMap({ onNodePress, onNodeLongPress, onAddChildNode, onNodeSelect, parentAddTargetNodeId, setParentAddTargetNodeId }, ref) {
     const { state, setSelectedNode, setZoom, setPan, deleteNode, deleteCriticism } = useThoughtMap();
-    const { colors } = useTheme();
+    const { colors, currentTheme } = useTheme();
     const pan = useRef(new Animated.ValueXY()).current;
     const scale = useRef(new Animated.Value(0.7)).current; // 初期ズームを0.7に
 
@@ -394,7 +394,7 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
       },
       zoomButtonText: {
         fontSize: 24,
-        color: colors.textPrimary,
+        color: currentTheme === 'light' ? '#000' : colors.textPrimary,
         fontWeight: 'bold',
       },
     });
