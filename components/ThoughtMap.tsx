@@ -1,5 +1,7 @@
-import React, { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
+import * as d3 from 'd3-force';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Dimensions,
   PanResponder,
@@ -8,9 +10,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { PhiloTreeColors } from '../constants/Colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { useThoughtMap } from '../contexts/ThoughtMapContext';
 import { Node } from '../types';
+import CompletionGauge from './CompletionGauge';
 import ConnectionLine from './ConnectionLine';
 import ThoughtNode from './ThoughtNode';
 
@@ -20,6 +23,9 @@ interface ThoughtMapProps {
   onNodePress?: (node: Node) => void;
   onNodeLongPress?: (node: Node) => void;
   onAddChildNode?: (parentNode: Node) => void;
+  onNodeSelect?: (node: Node) => void;
+  parentAddTargetNodeId?: string | null;
+  setParentAddTargetNodeId?: (id: string | null) => void;
 }
 
 interface NodePosition {
@@ -33,127 +39,182 @@ export interface ThoughtMapHandle {
 }
 
 const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
-  function ThoughtMap({ onNodePress, onNodeLongPress, onAddChildNode }, ref) {
-    const { state, setSelectedNode, setZoom, setPan } = useThoughtMap();
+  function ThoughtMap({ onNodePress, onNodeLongPress, onAddChildNode, onNodeSelect, parentAddTargetNodeId, setParentAddTargetNodeId }, ref) {
+    const { state, setSelectedNode, setZoom, setPan, deleteNode, deleteCriticism } = useThoughtMap();
+    const { colors } = useTheme();
     const pan = useRef(new Animated.ValueXY()).current;
-    const scale = useRef(new Animated.Value(1)).current;
+    const scale = useRef(new Animated.Value(0.7)).current; // 初期ズームを0.7に
 
-    // ノード・批評ノード両方の位置を計算
-    const nodePositions = useMemo(() => {
-      const positions: Record<string, NodePosition> = {};
-      const NODE_HEIGHT = 60;
-      const Y_GAP = 150;
-      const X_GAP = 180;
+    // ノードサイズ管理
+    const [nodeSizes, setNodeSizes] = useState<{ [id: string]: { width: number; height: number } }>({});
 
-      // 固定ノードサイズ
-      const NODE_WIDTH = 120;
-      const CRITICISM_WIDTH = 100;
+    // ノード・エッジデータをd3-force用に変換
+    // 型宣言ファイル追加（プロジェクトルートにtypes/d3-force.d.tsを作成）
+    // declare module 'd3-force';
 
-      // 1. ノードの階層（深さ）を計算
-      const nodeDepths: Record<string, number> = {};
-      function setDepth(nodeId: string, depth: number, visited: Set<string> = new Set()) {
-        if (visited.has(nodeId)) return;
+    // ノード型を明示
+    const nodeIds = new Set([
+      ...state.nodes.map(n => n.id),
+      ...state.criticisms.map(c => c.id)
+    ]);
+    const nodes: { id: string; x?: number; y?: number }[] = [
+      ...state.nodes.map(n => ({ id: n.id })),
+      ...state.criticisms.map(c => ({ id: c.id }))
+    ];
+    const links = [
+      // 通常ノードの親子関係
+      ...state.nodes.flatMap(n =>
+        n.parent_ids
+          .filter(pid => nodeIds.has(pid)) // 存在しない親IDは除外
+          .map(pid => ({ source: pid, target: n.id }))
+      ),
+      // 批評ノードの親子関係（node_idが親）
+      ...state.criticisms
+        .filter(c => c.node_id && nodeIds.has(c.node_id))
+        .map(c => ({ source: c.node_id, target: c.id }))
+    ];
+
+    // d3-forceで座標計算
+    const [forcePositions, setForcePositions] = useState<{ [id: string]: { x: number; y: number } }>({});
+    useEffect(() => {
+      if (nodes.length === 0) return;
+      
+      // ノードの階層レベルを計算（根拠→結果の流れ）
+      const calculateNodeLevel = (nodeId: string, visited: Set<string> = new Set()): number => {
+        if (visited.has(nodeId)) return 0; // 循環参照を防ぐ
         visited.add(nodeId);
-        if (nodeDepths[nodeId] === undefined || nodeDepths[nodeId] < depth) {
-          nodeDepths[nodeId] = depth;
-          // 子ノード
-          state.nodes.filter(n => n.parent_ids.includes(nodeId)).forEach(child => setDepth(child.id, depth + 1, new Set(visited)));
-          // 批評ノード
-          state.criticisms.filter(c => c.node_id === nodeId).forEach(crit => setDepth(crit.id, depth + 1, new Set(visited)));
+        
+        const node = state.nodes.find(n => n.id === nodeId);
+        if (!node || node.parent_ids.length === 0) {
+          return 0; // ルートノードはレベル0
         }
-      }
-      // ルートノードから深さを設定
-      state.nodes.filter(n => n.parent_ids.length === 0).forEach(root => setDepth(root.id, 0));
-      // ルートを持たない批評ノードも0に
-      state.criticisms.filter(c => !c.node_id).forEach(crit => setDepth(crit.id, 0));
-
-      // 2. 各階層ごとにノードをまとめる（批評ノードは除外）
-      const nodesByDepth: Record<number, string[]> = {};
-      Object.entries(nodeDepths).forEach(([id, depth]) => {
-        if (state.criticisms.some(c => c.id === id)) return;
-        if (!nodesByDepth[depth]) nodesByDepth[depth] = [];
-        nodesByDepth[depth].push(id);
+        
+        // 親ノードの最大レベル + 1
+        const parentLevels = node.parent_ids.map(pid => calculateNodeLevel(pid, new Set(visited)));
+        return Math.max(...parentLevels) + 1;
+      };
+      
+      // 各ノードのレベルを計算
+      const nodeLevels: { [id: string]: number } = {};
+      nodes.forEach(n => {
+        nodeLevels[n.id] = calculateNodeLevel(n.id);
       });
-
-      // 3. 各階層ごとに「批評ノード階層」を挿入するか判定
-      //    - 批評ノードを持つノードがいる階層を記録
-      const insertCriticismLayer: Record<number, boolean> = {};
-      Object.entries(nodesByDepth).forEach(([depthStr, ids]) => {
-        const depth = Number(depthStr);
-        // この階層のノードのうち、批評ノードを持つものがいるか
-        const hasCriticisms = ids.some(id => {
-          const node = state.nodes.find(n => n.id === id);
-          return node && state.criticisms.some(c => c.node_id === node.id);
-        });
-        if (hasCriticisms) {
-          insertCriticismLayer[depth] = true;
-        }
-      });
-
-      // 4. Y座標計算用に、各階層の「実際のYインデックス」を作る
-      //    - 批評ノード階層を挿入した分だけYをずらす
-      const depthToYIndex: Record<number, number> = {};
-      let yIndex = 0;
-      const maxDepth = Math.max(...Object.keys(nodesByDepth).map(Number));
-      for (let d = 0; d <= maxDepth; d++) {
-        depthToYIndex[d] = yIndex;
-        if (insertCriticismLayer[d]) {
-          yIndex += 2; // 批評ノード階層を挿入
+      
+      // 批評ノードのレベルを親ノードより少し下に設定
+      state.criticisms.forEach(c => {
+        if (c.node_id) {
+          nodeLevels[c.id] = nodeLevels[c.node_id] + 0.5; // 親ノードより少し下
         } else {
-          yIndex += 1;
+          nodeLevels[c.id] = 0; // 親がない批評ノード
+        }
+      });
+      
+      // ノードサイズを考慮したcollision forceの設定
+      const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links)
+          .id((d: {id: string}) => d.id)
+          .distance((link: any) => {
+            // 批評ノードへのリンクだけ短く
+            const isCriticism = state.criticisms.some(c => c.id === link.target.id || c.id === link.target);
+            return isCriticism ? 60 : 100;
+          })
+        )
+        .force('charge', d3.forceManyBody().strength(-300)) // 斥力を少し弱める
+        .force('center', d3.forceCenter(screenWidth / 2, screenHeight / 2))
+        .force('collision', d3.forceCollide().radius((d: any) => {
+          // ノードサイズに基づいて半径を設定（最小60px）
+          const nodeSize = nodeSizes[d.id];
+          if (nodeSize) {
+            return Math.max(nodeSize.width, nodeSize.height) / 2 + 30; // マージンを30pxに増加
+          }
+          return 60; // デフォルトサイズ
+        }))
+        .force('y', d3.forceY((d: any) => {
+          // レベルに基づいてY座標を設定（レベルが高いほど下に）
+          const level = nodeLevels[d.id] || 0;
+          const baseY = screenHeight / 2;
+          const levelSpacing = 150; // レベル間の距離
+          return baseY + (level * levelSpacing);
+        }).strength(0.3)) // Y軸方向の力を適度に設定
+        .alphaDecay(0.1) // より早く安定化
+        .velocityDecay(0.4) // 速度減衰を強める
+        .stop();
+      
+      // より多くのイテレーションで安定化
+      for (let i = 0; i < 500; ++i) simulation.tick();
+      
+      // 結果を保存
+      const pos: { [id: string]: { x: number; y: number } } = {};
+      nodes.forEach(n => {
+        pos[n.id] = { x: n.x ?? 0, y: n.y ?? 0 };
+      });
+      setForcePositions(pos);
+    }, [state.nodes, nodeSizes, state.criticisms]); // state.criticismsも依存配列に追加
+
+    // 達成度データを計算
+    const completionData = useMemo(() => {
+      // 選択されたノードがある場合
+      if (state.selectedNodeId) {
+        const selectedNode = state.nodes.find(n => n.id === state.selectedNodeId) || 
+                           state.criticisms.find(c => c.id === state.selectedNodeId);
+        
+        if (selectedNode) {
+          // 選択されたノードの下にある批評ノードを取得
+          const getCriticismsBelow = (nodeId: string, visited: Set<string> = new Set()): string[] => {
+            if (visited.has(nodeId)) return [];
+            visited.add(nodeId);
+            
+            const criticisms: string[] = [];
+            
+            // 直接の批評ノード
+            const directCriticisms = state.criticisms.filter(c => c.node_id === nodeId);
+            criticisms.push(...directCriticisms.map(c => c.id));
+            
+            // 子ノードの批評ノードも再帰的に取得
+            const childNodes = state.nodes.filter(n => n.parent_ids.includes(nodeId));
+            childNodes.forEach(child => {
+              criticisms.push(...getCriticismsBelow(child.id, new Set(visited)));
+            });
+            
+            return criticisms;
+          };
+          
+          const criticismsBelow = getCriticismsBelow(selectedNode.id);
+          
+          // 批評ノードのうち、子ノードを持つものをカウント
+          const criticismsWithChildren = criticismsBelow.filter(criticismId => {
+            // 批評ノードが子ノード（通常ノードまたは他の批評ノード）を持っているかチェック
+            const hasChildNodes = state.nodes.some(node => node.parent_ids.includes(criticismId));
+            const hasChildCriticisms = state.criticisms.some(c => c.node_id === criticismId);
+            return hasChildNodes || hasChildCriticisms;
+          });
+          
+          return {
+            completed: criticismsWithChildren.length,
+            total: criticismsBelow.length,
+            percentage: criticismsBelow.length > 0 ? Math.round((criticismsWithChildren.length / criticismsBelow.length) * 100) : 0
+          };
         }
       }
-
-      // 6. ノードを配置（動的サイズで中央揃え）
-      Object.entries(nodesByDepth).forEach(([depthStr, ids]) => {
-        const depth = Number(depthStr);
-        const y = 80 + depthToYIndex[depth] * Y_GAP;
-        
-        // この階層の全幅を計算（固定幅で計算）
-        const totalWidth = ids.length * NODE_WIDTH + (ids.length - 1) * X_GAP;
-        const startX = Math.max(80, (screenWidth - totalWidth) / 2);
-        
-        ids.forEach((id, idx) => {
-          const x = startX + idx * (NODE_WIDTH + X_GAP) + NODE_WIDTH / 2; // 中心座標を計算
-          const centerY = y + NODE_HEIGHT / 2; // 中心座標を計算
-          positions[id] = { x, y: centerY };
-        });
+      
+      // 何も選択していない場合：すべての批評ノードのうち子ノードを持つものをカウント
+      const allCriticisms = state.criticisms;
+      const criticismsWithChildren = allCriticisms.filter(criticism => {
+        const hasChildNodes = state.nodes.some(node => node.parent_ids.includes(criticism.id));
+        const hasChildCriticisms = state.criticisms.some(c => c.node_id === criticism.id);
+        return hasChildNodes || hasChildCriticisms;
       });
-
-      // 7. 批評ノードを「批評ノード階層」に配置（動的サイズで中央揃え）
-      Object.entries(nodesByDepth).forEach(([depthStr, ids]) => {
-        const depth = Number(depthStr);
-        if (!insertCriticismLayer[depth]) return;
-        
-        // この階層のノードの批評ノードを集める
-        let criticisms: any[] = [];
-        ids.forEach(id => {
-          const node = state.nodes.find(n => n.id === id);
-          if (!node) return;
-          const nodeCriticisms = state.criticisms.filter(c => c.node_id === node.id);
-          criticisms.push(...nodeCriticisms);
-        });
-        
-        if (criticisms.length === 0) return;
-        
-        // 批評ノード階層に配置
-        const y = 80 + (depthToYIndex[depth] + 1) * Y_GAP;
-        const totalWidth = criticisms.length * CRITICISM_WIDTH + (criticisms.length - 1) * X_GAP;
-        const startX = Math.max(80, (screenWidth - totalWidth) / 2);
-        
-        criticisms.forEach((crit, idx) => {
-          const x = startX + idx * (CRITICISM_WIDTH + X_GAP) + CRITICISM_WIDTH / 2; // 中心座標を計算
-          const centerY = y + NODE_HEIGHT / 2; // 中心座標を計算
-          positions[crit.id] = { x, y: centerY };
-        });
-      });
-
-      return positions;
-    }, [state.nodes, state.criticisms]);
+      
+      return {
+        completed: criticismsWithChildren.length,
+        total: allCriticisms.length,
+        percentage: allCriticisms.length > 0 ? Math.round((criticismsWithChildren.length / allCriticisms.length) * 100) : 0
+      };
+    }, [state.nodes, state.criticisms, state.selectedNodeId]);
 
     // canvasサイズを自動調整
     const canvasPadding = 200;
-    const allPositions = Object.values(nodePositions);
+    const allPositions = Object.values(forcePositions);
     const minX = allPositions.length ? Math.min(...allPositions.map(p => p.x)) : 0;
     const minY = allPositions.length ? Math.min(...allPositions.map(p => p.y)) : 0;
     const maxX = allPositions.length ? Math.max(...allPositions.map(p => p.x)) : screenWidth;
@@ -212,7 +273,6 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
 
     // 子ノード追加処理
     const handleAddChildNode = (parentNode: Node) => {
-      console.log('ThoughtMap handleAddChildNode called with parentNode:', parentNode.id);
       onAddChildNode?.(parentNode);
     };
 
@@ -221,10 +281,39 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
       setSelectedNode(undefined);
     };
 
+    // ノード削除ハンドラ
+    const handleDeleteNode = (node: Node) => {
+      Alert.alert(
+        'ノード削除',
+        '本当にこのノードを削除しますか？',
+        [
+          { text: 'キャンセル', style: 'cancel' },
+          { text: '削除', style: 'destructive', onPress: async () => {
+            console.log('Alert削除ボタンonPress呼び出し');
+            deleteNode(node.id);
+          } },
+        ]
+      );
+    };
+    // 批評ノード削除ハンドラ
+    const handleDeleteCriticism = (criticism: any) => {
+      Alert.alert(
+        '批評ノード削除',
+        '本当にこの批評ノードを削除しますか？',
+        [
+          { text: 'キャンセル', style: 'cancel' },
+          { text: '削除', style: 'destructive', onPress: async () => {
+            console.log('Alert削除ボタンonPress呼び出し');
+            deleteCriticism(criticism.id);
+          } },
+        ]
+      );
+    };
+
     // ノード位置にパン・ズームするメソッド
     useImperativeHandle(ref, () => ({
       focusNode: (nodeId: string) => {
-        const pos = nodePositions[nodeId];
+        const pos = forcePositions[nodeId];
         if (!pos) return;
         
         // ノードサイズを動的に計算
@@ -259,10 +348,68 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
         setPan({ x: targetX, y: targetY });
         setSelectedNode(nodeId);
       }
-    }), [nodePositions, setPan, setSelectedNode, state.nodes, state.criticisms]);
+    }), [forcePositions, setPan, setSelectedNode, state.nodes, state.criticisms]);
+
+    // スタイルをコンポーネント内で定義
+    const styles = StyleSheet.create({
+      container: {
+        flex: 1,
+        backgroundColor: colors.background,
+      },
+      mapContainer: {
+        flex: 1,
+        position: 'relative',
+      },
+      background: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: colors.background,
+      },
+      completionGaugeContainer: {
+        position: 'absolute',
+        top: 20,
+        left: 20,
+        right: 20,
+        zIndex: 1000,
+      },
+      zoomControls: {
+        position: 'absolute',
+        bottom: 30,
+        left: 30,
+        flexDirection: 'column',
+      },
+      zoomButton: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: colors.backgroundSecondary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: colors.border,
+      },
+      zoomButtonText: {
+        fontSize: 24,
+        color: colors.textPrimary,
+        fontWeight: 'bold',
+      },
+    });
 
     return (
       <View style={styles.container}>
+        {/* 達成度ゲージ - 常に最前面に表示 */}
+        <View style={styles.completionGaugeContainer}>
+          <CompletionGauge 
+            completed={completionData.completed}
+            total={completionData.total}
+            percentage={completionData.percentage}
+          />
+        </View>
+
         <Animated.View
           style={[
             styles.mapContainer,
@@ -287,37 +434,53 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
 
           {/* 接続線（Node→Node, Node→Criticism） */}
           {state.nodes.map((node) => {
-            const nodePos = nodePositions[node.id];
+            const nodePos = forcePositions[node.id];
             if (!nodePos) return null;
-            // Node→Node
+            
+            // Node→Node, Criticism→Node（親が通常ノードまたは批評ノード）
             const nodeLines = node.parent_ids.map((parentId) => {
-              const parentPos = nodePositions[parentId];
-              const parentNode = state.nodes.find(n => n.id === parentId);
-              if (!parentPos || !parentNode) return null;
+              const parentPos = forcePositions[parentId];
+              // 親が通常ノードか批評ノードかを判定
+              const parentNode = state.nodes.find(n => n.id === parentId) || state.criticisms.find(c => c.id === parentId);
+              if (!parentPos || !parentNode) {
+                return null;
+              }
+              // 批評ノードの場合はisCriticismフラグを付与
+              const isParentCriticism = !!state.criticisms.find(c => c.id === parentId);
+              const parentNodeWithFlag = isParentCriticism ? { ...parentNode, isCriticism: true } : parentNode;
               return (
                 <ConnectionLine
                   key={`connection-${parentId}-${node.id}`}
                   startPos={parentPos}
                   endPos={nodePos}
-                  startNode={parentNode}
+                  startNode={parentNodeWithFlag}
                   endNode={node}
+                  startNodeSize={nodeSizes[parentId]}
+                  endNodeSize={nodeSizes[node.id]}
                   isSelected={state.selectedNodeId === node.id || state.selectedNodeId === parentId}
+                  isDashed={false} // 批評ノードを親に持つノードは実線
                 />
               );
             });
-            // Node→Criticism
+            // ノードを親にもつ批評ノード（点線）
             const criticismLines = state.criticisms.filter(c => c.node_id === node.id).map(c => {
-              const cPos = nodePositions[c.id];
-              if (!cPos) return null;
+              const cPos = forcePositions[c.id];
+              if (!cPos) {
+                return null;
+              }
+              // 批評ノードにisCriticismフラグを追加
+              const criticismNode = { ...c, isCriticism: true };
               return (
                 <ConnectionLine
                   key={`connection-${node.id}-criticism-${c.id}`}
                   startPos={nodePos}
                   endPos={cPos}
                   startNode={node}
-                  endNode={c}
+                  endNode={criticismNode}
+                  startNodeSize={nodeSizes[node.id]}
+                  endNodeSize={nodeSizes[c.id]}
                   isSelected={state.selectedNodeId === node.id || state.selectedNodeId === c.id}
-                  isDashed={true}
+                  isDashed={true} // ノードを親にもつ批評ノードは点線
                 />
               );
             });
@@ -326,7 +489,7 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
 
           {/* ノード描画 */}
           {state.nodes.map((node) => {
-            const position = nodePositions[node.id];
+            const position = forcePositions[node.id];
             if (!position) return null;
             return (
               <ThoughtNode
@@ -335,16 +498,21 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
                 position={position}
                 isSelected={state.selectedNodeId === node.id}
                 isCriticism={false}
-                onSelect={() => handleNodeSelect(node)}
+                onSelect={() => onNodeSelect?.(node)}
                 onPress={() => handleNodePress(node)}
                 onLongPress={() => handleNodeLongPress(node)}
                 onAddChild={() => handleAddChildNode(node)}
+                onAddParent={setParentAddTargetNodeId ? () => setParentAddTargetNodeId(node.id) : undefined}
+                parentAddTargetNodeId={parentAddTargetNodeId}
+                onLayout={({ width, height }) => {
+                  setNodeSizes(sizes => ({ ...sizes, [node.id]: { width, height } }));
+                }}
               />
             );
           })}
           {/* 批評ノード描画 */}
           {state.criticisms.map((c) => {
-            const position = nodePositions[c.id];
+            const position = forcePositions[c.id];
             if (!position) return null;
             // 子ノードを持たない批評ノードを判定
             const hasChild = state.nodes.some(node => node.parent_ids.includes(c.id)) || state.criticisms.some(cc => cc.node_id === c.id);
@@ -360,6 +528,9 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
                 onPress={() => handleNodePress(c as any)}
                 onLongPress={() => onNodeLongPress?.(c as any)}
                 onAddChild={() => onAddChildNode?.(c as any)}
+                onLayout={({ width, height }) => {
+                  setNodeSizes(sizes => ({ ...sizes, [c.id]: { width, height } }));
+                }}
               />
             );
           })}
@@ -380,7 +551,7 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
           <TouchableOpacity
             style={styles.zoomButton}
             onPress={() => {
-              const newScale = Math.max(0.5, state.zoom - 0.2);
+              const newScale = Math.max(0.3, state.zoom - 0.2); // 最小ズームを0.3に
               scale.setValue(newScale);
               setZoom(newScale);
             }}
@@ -393,45 +564,4 @@ const ThoughtMap = forwardRef<ThoughtMapHandle, ThoughtMapProps>(
   }
 );
 
-export default ThoughtMap;
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: PhiloTreeColors.background,
-  },
-  mapContainer: {
-    flex: 1,
-    position: 'relative',
-  },
-  background: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: PhiloTreeColors.background,
-  },
-  zoomControls: {
-    position: 'absolute',
-    bottom: 30,
-    left: 30,
-    flexDirection: 'column',
-  },
-  zoomButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: PhiloTreeColors.backgroundSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: PhiloTreeColors.border,
-  },
-  zoomButtonText: {
-    fontSize: 24,
-    color: PhiloTreeColors.textPrimary,
-    fontWeight: 'bold',
-  },
-}); 
+export default ThoughtMap; 

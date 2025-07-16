@@ -1,14 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useReducer } from 'react';
 import { Platform } from 'react-native';
-import { REALTIME_CHANNELS, supabase, TABLES } from '../lib/supabase';
+import { supabase, TABLES } from '../lib/supabase';
 import {
-  CreateCriticismRequest,
-  CreateNodeRequest,
-  Criticism,
-  Node,
-  ThoughtMapState,
-  UpdateNodeRequest
+    CreateCriticismRequest,
+    CreateNodeRequest,
+    Criticism,
+    Node,
+    ThoughtMapState,
+    UpdateNodeRequest
 } from '../types';
 
 // アクション型定義
@@ -140,51 +140,9 @@ const ThoughtMapContext = createContext<ThoughtMapContextType | undefined>(undef
 export function ThoughtMapProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(thoughtMapReducer, initialState);
 
-  // Supabaseからのリアルタイム更新を設定
+  // Supabaseからの初回データ取得のみ（リアルタイムサブスクリプションは削除）
   useEffect(() => {
-    // ノードのリアルタイムサブスクリプション
-    const nodesSubscription = supabase
-      .channel(REALTIME_CHANNELS.NODES)
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: TABLES.NODES },
-        (payload) => {
-          console.log('Node change:', payload);
-          if (payload.eventType === 'INSERT') {
-            dispatch({ type: 'ADD_NODE', payload: payload.new as Node });
-          } else if (payload.eventType === 'UPDATE') {
-            dispatch({ type: 'UPDATE_NODE', payload: payload.new as Node });
-          } else if (payload.eventType === 'DELETE') {
-            dispatch({ type: 'DELETE_NODE', payload: payload.old.id });
-          }
-        }
-      )
-      .subscribe();
-
-    // 批評のリアルタイムサブスクリプション
-    const criticismsSubscription = supabase
-      .channel(REALTIME_CHANNELS.CRITICISMS)
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: TABLES.CRITICISMS },
-        (payload) => {
-          console.log('Criticism change:', payload);
-          if (payload.eventType === 'INSERT') {
-            dispatch({ type: 'ADD_CRITICISM', payload: payload.new as Criticism });
-          } else if (payload.eventType === 'UPDATE') {
-            dispatch({ type: 'UPDATE_CRITICISM', payload: payload.new as Criticism });
-          } else if (payload.eventType === 'DELETE') {
-            dispatch({ type: 'DELETE_CRITICISM', payload: payload.old.id });
-          }
-        }
-      )
-      .subscribe();
-
-    // 初期データの読み込み
     syncFromSupabase();
-
-    return () => {
-      nodesSubscription.unsubscribe();
-      criticismsSubscription.unsubscribe();
-    };
   }, []);
 
   // Supabaseからデータを同期
@@ -214,35 +172,53 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
         }
       });
     } catch (error) {
-      console.error('Failed to sync from Supabase:', error);
+      // エラーハンドリング
     }
   };
 
   // ノード追加
   const addNode = async (nodeData: CreateNodeRequest) => {
-    const newNode: Node = {
-      id: Date.now().toString(),
+    // idが含まれていないかチェック
+    if ('id' in nodeData) {
+      console.warn('WARNING: nodeDataにidが含まれています。insert時にidを送らないでください。', nodeData.id);
+    }
+
+    // parent_idsの型・値をチェック
+    if (Array.isArray(nodeData.parent_ids)) {
+      nodeData.parent_ids.forEach((pid, idx) => {
+        if (typeof pid !== 'string' || !/^[0-9a-fA-F-]{36}$/.test(pid)) {
+          console.warn(`WARNING: parent_ids[${idx}]がuuid形式ではありません:`, pid);
+        }
+      });
+    }
+
+    // newNode生成
+    const newNode = {
       title: nodeData.title,
       content: nodeData.content,
-      parent_ids: nodeData.parent_ids || [],
+      parent_ids: nodeData.parent_ids,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       source_gpt: nodeData.source_gpt,
     };
 
     try {
-      // Supabaseに保存
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from(TABLES.NODES)
-        .insert(newNode);
+        .insert(newNode)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      // ローカル状態も更新（リアルタイム更新で重複を避けるため）
-      dispatch({ type: 'ADD_NODE', payload: newNode });
-      await saveState();
+      if (data && data.length > 0) {
+        dispatch({ type: 'ADD_NODE', payload: data[0] });
+        await saveState();
+      } else {
+        console.warn('Supabase insert succeeded but no data returned.');
+      }
     } catch (error) {
-      console.error('Failed to add node:', error);
       throw error;
     }
   };
@@ -271,7 +247,6 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'UPDATE_NODE', payload: updatedNode });
       await saveState();
     } catch (error) {
-      console.error('Failed to update node:', error);
       throw error;
     }
   };
@@ -291,7 +266,6 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'DELETE_NODE', payload: nodeId });
       await saveState();
     } catch (error) {
-      console.error('Failed to delete node:', error);
       throw error;
     }
   };
@@ -321,7 +295,6 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'ADD_CRITICISM', payload: newCriticism });
       await saveState();
     } catch (error) {
-      console.error('Failed to add criticism:', error);
       throw error;
     }
   };
@@ -349,7 +322,6 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'UPDATE_CRITICISM', payload: updatedCriticism });
       await saveState();
     } catch (error) {
-      console.error('Failed to update criticism:', error);
       throw error;
     }
   };
@@ -369,7 +341,6 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'DELETE_CRITICISM', payload: criticismId });
       await saveState();
     } catch (error) {
-      console.error('Failed to delete criticism:', error);
       throw error;
     }
   };
@@ -400,7 +371,7 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (error) {
-      console.error('Failed to load state:', error);
+      // エラーハンドリング
     }
   };
 
@@ -411,7 +382,7 @@ export function ThoughtMapProvider({ children }: { children: ReactNode }) {
         await AsyncStorage.setItem('thoughtMapState', JSON.stringify(state));
       }
     } catch (error) {
-      console.error('Failed to save state:', error);
+      // エラーハンドリング
     }
   };
 

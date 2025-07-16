@@ -27,7 +27,6 @@ export const FocusNodeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const clearPending = () => setPendingNodeId(null);
 
-  console.log('FocusNodeProvider render', pendingNodeId);
   return (
     <FocusNodeContext.Provider value={{ focusNode, subscribe, pendingNodeId, clearPending }}>
       {children}

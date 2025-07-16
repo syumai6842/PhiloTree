@@ -4,18 +4,8 @@ import { Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
 
 // Supabase設定
-// 環境変数を設定するか、直接値を設定してください
-// 
-// 1. 環境変数を使用する場合:
-// - .env.local ファイルを作成
-// - EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
-// - EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-//
-// 2. 直接値を設定する場合:
-// - 以下の値を実際のSupabaseプロジェクトの値に置き換えてください
-
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'YOUR_SUPABASE_URL';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://knjtgrcydclkwiomekcu.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtuanRncmljeWRjbGt3aW9tZWtjdSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzQ4NzEwMDEwLCJleHA6MjA2NjM4OTAxMH0.d6XstEX5OcIHiRkSj2DXhWmYAUDguPvjIQC4mkyM8Es';
 
 // Web環境ではAsyncStorageを使用しない
 const storage = Platform.OS === 'web' ? undefined : AsyncStorage;
@@ -26,6 +16,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
   },
 });
 

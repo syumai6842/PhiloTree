@@ -27,11 +27,7 @@ serve(async (req)=>{
     // 環境変数の確認
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
-    console.log('Environment variables check:');
-    console.log('SUPABASE_URL:', supabaseUrl ? 'Set' : 'Not set');
-    console.log('SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Not set');
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Missing required environment variables');
       return new Response(JSON.stringify({
         error: 'Missing environment variables'
       }), {
@@ -55,7 +51,6 @@ serve(async (req)=>{
       ascending: false
     });
     if (nodesError) {
-      console.error('Failed to fetch nodes:', nodesError);
       return new Response(JSON.stringify({
         error: 'Failed to fetch nodes',
         details: nodesError.message,
@@ -73,7 +68,6 @@ serve(async (req)=>{
       ascending: false
     });
     if (criticismsError) {
-      console.error('Failed to fetch criticisms:', criticismsError);
       return new Response(JSON.stringify({
         error: 'Failed to fetch criticisms',
         details: criticismsError.message,
@@ -86,7 +80,6 @@ serve(async (req)=>{
         }
       });
     }
-    console.log(`Fetched ${nodes?.length || 0} nodes and ${criticisms?.length || 0} criticisms`);
     return new Response(JSON.stringify({
       success: true,
       data: {
@@ -101,7 +94,6 @@ serve(async (req)=>{
       }
     });
   } catch (error) {
-    console.error('Function error:', error);
     return new Response(JSON.stringify({
       error: 'Internal server error',
       details: error.message

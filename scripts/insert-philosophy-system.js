@@ -169,10 +169,7 @@ const criticisms = [
 
 async function insertPhilosophySystem() {
   try {
-    console.log('思想体系の挿入を開始します...');
-
     // ノードの挿入
-    console.log('ノードを挿入中...');
     const { data: nodesData, error: nodesError } = await supabase
       .from('nodes')
       .insert(nodes);
@@ -182,10 +179,7 @@ async function insertPhilosophySystem() {
       return;
     }
 
-    console.log(`${nodes.length}個のノードが挿入されました`);
-
     // 批評の挿入
-    console.log('批評を挿入中...');
     const { data: criticismsData, error: criticismsError } = await supabase
       .from('criticisms')
       .insert(criticisms);
@@ -194,10 +188,6 @@ async function insertPhilosophySystem() {
       console.error('批評の挿入エラー:', criticismsError);
       return;
     }
-
-    console.log(`${criticisms.length}個の批評が挿入されました`);
-
-    console.log('思想体系の挿入が完了しました！');
 
   } catch (error) {
     console.error('エラーが発生しました:', error);
