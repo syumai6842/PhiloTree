@@ -156,7 +156,12 @@ export default function ThoughtMapScreen() {
     },
     modalOverlay: {
       flex: 1,
-      backgroundColor: colors.overlay,
+      backgroundColor: 'rgba(0,0,0,0.3)', // 半透明の背景
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -343,11 +348,13 @@ export default function ThoughtMapScreen() {
         transparent={true}
         onRequestClose={handleNodeDetailClose}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={handleNodeDetailClose}
-        >
+        <View style={styles.modalOverlay}>
+          {/* 背景部分のみTouchableOpacityにする（全体を覆う） */}
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={handleNodeDetailClose}
+          />
           <View style={styles.modalContainer}>
             {selectedNode && (
               <NodeDetail
@@ -359,7 +366,7 @@ export default function ThoughtMapScreen() {
               />
             )}
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </SafeAreaView>
   );
